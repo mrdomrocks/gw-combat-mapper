@@ -11,6 +11,7 @@
 #include "lib\CombatLogger.au3"
 #include "lib\SmartCast.au3"
 #include "lib\VanquishCheck.au3"
+#include "lib\LootPickup.au3"
 
 ; Pathfinder DLL (also pulled in via Plugins, but path must be set before Initialize)
 $DLL_PATH = @ScriptDir & "\vendor\GwAu3\API\Plugins\Pathfinder\GWPathfinder.dll"
@@ -167,6 +168,7 @@ Func StartBot()
 	$g_s_SelectedTarget = GUICtrlRead($g_h_TargetCombo)
 	MapTravel_LoadConfig($GC_S_CONFIG)
 	CombatLogger_LoadConfig($GC_S_CONFIG)
+	LootPickup_LoadConfig($GC_S_CONFIG)
 
 	_SaveGuiBoundsToConfig()
 	If $g_b_HardMode Then
@@ -340,6 +342,7 @@ Func RunCaravanSequence()
 	_Vanquisher_InitAscalonCaravanPlan()
 	CombatLogger_LoadConfig()
 	SmartCast_LoadConfig()
+	LootPickup_LoadConfig()
 
 	Local $l_s_LogStart = $g_s_CaravanLogStartMap
 	Local $l_i_LogStartStage = _CaravanStageIndexByTitle($l_s_LogStart)
@@ -541,6 +544,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 	CombatLogger_LoadConfig()
 	SmartCast_LoadConfig()
+	LootPickup_LoadConfig()
 
 	If $a_b_ReuseLogSession And CombatLogger_IsSessionActive() Then
 		; Keep current log file across caravan maps
@@ -575,7 +579,8 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	EndIf
 
 	Out("Starting coverage sweep: " & $g_i_CoverageCount & " waypoints, aggro=" & $g_f_AggroRange & _
-		" | MapID=" & Map_GetMapID() & " | SmartCast=" & $g_b_SmartCastEnabled)
+		" | MapID=" & Map_GetMapID() & " | SmartCast=" & $g_b_SmartCastEnabled & _
+		" | Loot=" & Int($g_b_LootPickupEnabled))
 
 	Local Const $GC_I_WAYPOINT_TIMEOUT_MS = 120000
 	Local Const $GC_I_WAYPOINT_MAX_RETRIES = 3
@@ -602,6 +607,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		Local $hMove = TimerInit()
 		Local $l_b_Ok = Pathfinder_MoveTo($l_f_X, $l_f_Y, -1, "UAI_GetObstacles", _
 			$g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
+		LootPickup_Sweep()
 
 		Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
 
@@ -662,6 +668,7 @@ Func CombatMapper_Tick()
 	If $g_b_StopRequested Then Return
 	SmartCast_EnsureReady(False)
 	CombatLogger_Tick()
+	LootPickup_Tick()
 	UpdateStatusLabel("XY=(" & Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ")" & _
 		" | events=" & CombatLogger_GetCount() & " | sc=" & Int($g_b_SmartCastReady))
 EndFunc

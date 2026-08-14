@@ -3,6 +3,7 @@
 ; Hard-mode travel + GoOut (LocationsIDS titles / Caravan_Ascalon routes).
 #include "SmartCast.au3"
 #include "VanquishCheck.au3"
+#include "LootPickup.au3"
 #include "maps\LocationsIDS.au3"
 #include "maps\GoOutRoutes.au3"
 
@@ -62,6 +63,7 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_Nudges = 6)
 			Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
 			Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
 			UAI_Fight($l_f_Mx, $l_f_My, MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher())
+			LootPickup_Sweep()
 		EndIf
 		Map_Move($a_f_X, $a_f_Y, 0)
 		Sleep(350)
@@ -97,6 +99,7 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "")
 		MapTravel_ConfigurePathfinderForPortal()
 		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
 			MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
+		LootPickup_Sweep()
 
 		If Map_GetMapID() <> $l_i_Before Or Map_GetInstanceInfo("IsLoading") Then
 			MapTravel_OnPortalCrossed()
