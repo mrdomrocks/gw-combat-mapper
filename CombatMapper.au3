@@ -219,8 +219,8 @@ Func CombatMapper_SyncPauseFromGui()
 	$g_b_PauseRequested = $bWant
 	If $bWant Then
 		Agent_CancelAction()
-		Out("Paused (F8 or checkbox).")
-		UpdateStatusLabel("PAUSED")
+		Out("Paused — manual movement OK, F7 to log XY, F8 to resume.")
+		UpdateStatusLabel("PAUSED | F7 log XY")
 	Else
 		Out("Resumed.")
 		UpdateStatusLabel("running")
@@ -256,12 +256,11 @@ Func HotKey_LogCoord()
 EndFunc
 
 ; Block while paused (Pathfinder tick + sweep loops). Stop breaks out.
+; Do not call Agent_CancelAction in the wait loop — that blocks manual movement for coordinate logging.
 Func CombatMapper_WaitIfPaused()
 	CombatMapper_SyncPauseFromGui()
 	If Not $g_b_PauseRequested Then Return
-	Agent_CancelAction()
 	While $g_b_PauseRequested And Not $g_b_StopRequested
-		Agent_CancelAction()
 		Sleep(100)
 		CombatMapper_SyncPauseFromGui()
 	WEnd
