@@ -1,5 +1,7 @@
 #include-once
-; Portal transit/outpost paths from Guild-Wars-Vanquish-Bot Maps (OutpostPath / TransitPath arrays).
+; Portal paths from Guild-Wars-Vanquish-Bot Maps.
+; OutpostPath  — single-map farm: TravelTo that title's outpost, then walk these coords out.
+; TransitPath  — caravan spine: portal-to-portal on the previous explorable (never outpost coords).
 ; MapTravel_RunPortalRoute walks every waypoint with pathfinder + SmartCast, like _Vanquisher_RunAggroPortalPath.
 
 Global $aTheBlackCurtainOutpostPath = [ _
@@ -118,6 +120,27 @@ Global $aGriffonsMouthTransitPath = [ _
 Global $aDeldrimorBowlOutpostPath = [ _
 	[-9681, 34559], _
 	[-11100, 35350] _
+]
+
+; Recorded on Deldrimor Bowl, walking to the Anvil Rock portal (NE).
+Global $aAnvilRockTransitPath = [ _
+	[-12175.2421, -21966.2984], _
+	[-9091.6951, -22633.8704], _
+	[-6961.8225, -19868.2149], _
+	[-5944.5699, -10999.0438], _
+	[-5308.7870, -2892.8121], _
+	[-8130.0735, -707.3085], _
+	[-7534.0271, 4061.0631], _
+	[-6143.2521, 12127.5584], _
+	[-4951.1592, 17015.1393], _
+	[-858.3069, 18684.0693], _
+	[2400.0804, 21147.7280], _
+	[3870.3283, 24207.4331], _
+	[4863.7390, 26472.4096], _
+	[8479.7541, 24604.7974], _
+	[11380.5135, 26075.0453], _
+	[13605.7536, 26194.2546], _
+	[14599.1643, 26790.3010] _
 ]
 
 Global $aAnvilRockOutpostPath = [ _

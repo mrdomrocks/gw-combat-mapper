@@ -23,6 +23,7 @@ Global $TheBreach_Transit3 = 105              ;Dragon's Gullet (return start)
 ;NorthernShiverpeaks IDs
 Global $AnvilRock_Map = 89
 Global $AnvilRock_Outpost = 132               ;Ice Tooth Cave
+Global $AnvilRock_Transit = 100               ;Deldrimor Bowl
 Global $DeldrimorBowl_Map = 100
 Global $DeldrimorBowl_Outpost = 133           ;Beacons Perch
 Global $GriffonsMouth_Map = 27

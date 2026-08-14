@@ -77,7 +77,7 @@ Func _Vanquisher_InitAscalonCaravanPlan()
 
     $g_a_AscalonCaravanPlan[7][0] = $AnvilRock_Map
     $g_a_AscalonCaravanPlan[7][1] = $AnvilRock_Outpost
-    $g_a_AscalonCaravanPlan[7][2] = 0
+    $g_a_AscalonCaravanPlan[7][2] = $AnvilRock_Transit
     $g_a_AscalonCaravanPlan[7][3] = 0
     $g_a_AscalonCaravanPlan[7][4] = 0
     $g_a_AscalonCaravanPlan[7][5] = "GoOutAnvilRock"

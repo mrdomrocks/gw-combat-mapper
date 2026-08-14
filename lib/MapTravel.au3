@@ -188,8 +188,10 @@ Func MapTravel_TryGetExplorableCrossingPath($a_i_CurrentMap, $a_i_TargetMap, ByR
 	Return False
 EndFunc
 
-; Resolve vanquish-bot OutpostPath / TransitPath for current map + target title.
-; $a_b_TransitOnly: caravan/explorable hops — skip OutpostPath (not needed on spine).
+; Resolve GoOutRoutes path for current map + target title.
+; OutpostPath matches when standing in that map's outpost (single-map farm, or leaving TOA).
+; TransitPath matches when standing on the previous explorable (caravan portal hop).
+; $a_b_TransitOnly is kept for callers; map ID already selects outpost vs transit.
 Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRef $a_s_Label, $a_b_TransitOnly = False)
 	Local $l_i_Map = Map_GetMapID()
 	Local $l_i_Target = MapCatalog_GetMapID($a_s_TargetTitle)
@@ -201,13 +203,13 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 
 	Switch $a_s_TargetTitle
 		Case "TheBlackCurtain"
-			If Not $a_b_TransitOnly And $l_i_Map = $TheBlackCurtain_Outpost Then
+			If $l_i_Map = $TheBlackCurtain_Outpost Then
 				$a_a_Path = $aTheBlackCurtainOutpostPath
 				$a_s_Label = "TOA->BlackCurtain "
 				Return True
 			EndIf
 		Case "CursedLands"
-			If Not $a_b_TransitOnly And $l_i_Map = $CursedLands_Outpost Then
+			If $l_i_Map = $CursedLands_Outpost Then
 				$a_a_Path = $aCursedLandsOutpostPath
 				$a_s_Label = "TOA->CursedLands "
 				Return True
@@ -218,7 +220,7 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 				Return True
 			EndIf
 		Case "NeboTerrace"
-			If Not $a_b_TransitOnly And $l_i_Map = $NeboTerrace_Outpost Then
+			If $l_i_Map = $NeboTerrace_Outpost Then
 				$a_a_Path = $aNeboTerraceOutpostPath
 				$a_s_Label = "TOA->Nebo "
 				Return True
@@ -234,19 +236,19 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 				Return True
 			EndIf
 		Case "NorthKrytaProvince"
-			If Not $a_b_TransitOnly And $l_i_Map = $NorthKrytaProvince_Outpost Then
+			If $l_i_Map = $NorthKrytaProvince_Outpost Then
 				$a_a_Path = $aNorthKrytaProvinceOutpostPath
 				$a_s_Label = "LA->NKP "
 				Return True
 			EndIf
 		Case "ScoundrelsRise"
-			If Not $a_b_TransitOnly And $l_i_Map = $ScoundrelsRise_Outpost Then
+			If $l_i_Map = $ScoundrelsRise_Outpost Then
 				$a_a_Path = $aScoundrelsRiseOutpostPath
 				$a_s_Label = "GoK->Scoundrels "
 				Return True
 			EndIf
 		Case "GriffonsMouth"
-			If Not $a_b_TransitOnly And $l_i_Map = $GriffonsMouth_Outpost Then
+			If $l_i_Map = $GriffonsMouth_Outpost Then
 				$a_a_Path = $aGriffonsMouthOutpostPath
 				$a_s_Label = "GoK->Griffons "
 				Return True
@@ -257,19 +259,24 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 				Return True
 			EndIf
 		Case "DeldrimorBowl"
-			If Not $a_b_TransitOnly And $l_i_Map = $DeldrimorBowl_Outpost Then
+			If $l_i_Map = $DeldrimorBowl_Outpost Then
 				$a_a_Path = $aDeldrimorBowlOutpostPath
 				$a_s_Label = "Beacon->Deldrimor "
 				Return True
 			EndIf
 		Case "AnvilRock"
-			If Not $a_b_TransitOnly And $l_i_Map = $AnvilRock_Outpost Then
+			If $l_i_Map = $AnvilRock_Outpost Then
 				$a_a_Path = $aAnvilRockOutpostPath
 				$a_s_Label = "ITC->Anvil "
 				Return True
 			EndIf
+			If $l_i_Map = $AnvilRock_Transit Then
+				$a_a_Path = $aAnvilRockTransitPath
+				$a_s_Label = "Transit->Anvil "
+				Return True
+			EndIf
 		Case "IronHorseMine"
-			If Not $a_b_TransitOnly And $l_i_Map = $IronHorseMine_Outpost Then
+			If $l_i_Map = $IronHorseMine_Outpost Then
 				$a_a_Path = $aIronHorseMineOutpostPath
 				$a_s_Label = "ITC->IHM "
 				Return True
@@ -280,7 +287,7 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 				Return True
 			EndIf
 		Case "TravelersVale"
-			If Not $a_b_TransitOnly And $l_i_Map = $TravelersVale_Outpost Then
+			If $l_i_Map = $TravelersVale_Outpost Then
 				$a_a_Path = $aTravelersValeOutpostPath
 				$a_s_Label = "Yaks->TV "
 				Return True
@@ -495,7 +502,9 @@ Func MapTravel_GoOut($a_s_Title, $a_b_TransitOnly = False)
 	Return False
 EndFunc
 
-; Travel to outpost (if any), set Hard Mode, GoOut until on target explorable.
+; Enter target explorable.
+; TransitOnly False (single-map farm): TravelTo that title's outpost, then OutpostPath.
+; TransitOnly True (caravan): stay on the current map and use TransitPath (or OutpostPath if already in the outpost).
 Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = False)
 	Local $l_i_Target = MapCatalog_GetMapID($a_s_Title)
 	Local $l_i_Outpost = MapCatalog_GetOutpostID($a_s_Title)
@@ -510,19 +519,15 @@ Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = F
 		Return True
 	EndIf
 
-	If Map_GetInstanceInfo("IsExplorable") Then
-		MapTravel_EnsureHardMode()
-		If MapTravel_DynamicPortalTo($l_i_Target, $a_s_Title) Then Return True
-		If MapTravel_GoOut($a_s_Title, $a_b_TransitOnly) And Map_GetMapID() = $l_i_Target Then Return True
-	EndIf
-
-	If $l_i_Outpost <= 0 Then
-		$l_i_Outpost = $TheBlackCurtain_Outpost
-	EndIf
-
-	If Not MapTravel_TravelToOutpost($l_i_Outpost) Then
-		Out("Failed to travel to outpost " & $l_i_Outpost & " for " & $a_s_Title)
-		Return False
+	If Not $a_b_TransitOnly Then
+		If $l_i_Outpost <= 0 Then $l_i_Outpost = $TheBlackCurtain_Outpost
+		Out("Single-map farm: outpost " & $l_i_Outpost & " -> " & $a_s_Title)
+		If Not MapTravel_TravelToOutpost($l_i_Outpost) Then
+			Out("Failed to travel to outpost " & $l_i_Outpost & " for " & $a_s_Title)
+			Return False
+		EndIf
+	ElseIf Map_GetInstanceInfo("IsExplorable") Then
+		Out("Caravan: transit hop to " & $a_s_Title & " from map " & Map_GetMapID())
 	EndIf
 
 	MapTravel_EnsureHardMode()
@@ -539,7 +544,7 @@ Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = F
 		Map_WaitMapIsLoaded()
 		Sleep(750)
 		If Map_GetMapID() = $l_i_Target Then Return True
-		If Map_GetInstanceInfo("IsExplorable") Then
+		If $a_b_TransitOnly And Map_GetInstanceInfo("IsExplorable") Then
 			If MapTravel_DynamicPortalTo($l_i_Target, $a_s_Title) Then Return True
 			MapTravel_GoOut($a_s_Title, $a_b_TransitOnly)
 		EndIf
