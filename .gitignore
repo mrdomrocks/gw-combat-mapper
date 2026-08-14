@@ -1,0 +1,13 @@
+logs/*.csv
+!logs/.gitkeep
+coverage_progress.ini
+coverage_route.csv
+*.log
+Thumbs.db
+Desktop.ini
+
+# GwAu3 is cloned separately (large + nested .git)
+vendor/GwAu3/
+vendor/vanquish-bot
+# Re-clone if missing:
+#   git clone --depth 1 https://github.com/GwAu3-Projects/GwAu3.git vendor/GwAu3
