@@ -190,7 +190,10 @@ Func CombatLogger_EnsureMapCoordLog()
 	EndIf
 
 	Local $l_i_MapID = Map_GetMapID()
-	If $l_i_MapID <= 0 Then Return False
+	If $l_i_MapID <= 0 Then
+		Out("Log XY: MapID is " & $l_i_MapID & " (character not loaded on a map?)")
+		Return False
+	EndIf
 
 	Local $l_s_Path = @ScriptDir & "\" & $g_s_LogDirectory & "\map_waypoints_" & $l_i_MapID & ".csv"
 	If $g_s_MapCoordLogFile <> $l_s_Path Then
@@ -198,7 +201,10 @@ Func CombatLogger_EnsureMapCoordLog()
 		$g_i_MapCoordLoggedCount = 0
 		If Not FileExists($l_s_Path) Then
 			Local $l_h = FileOpen($l_s_Path, $FO_OVERWRITE + $FO_CREATEPATH)
-			If $l_h = -1 Then Return False
+			If $l_h = -1 Then
+				Out("Log XY: could not create " & $l_s_Path)
+				Return False
+			EndIf
 			FileWriteLine($l_h, "timestamp,map_id,label,x,y")
 			FileClose($l_h)
 		EndIf
@@ -209,7 +215,10 @@ EndFunc
 Func CombatLogger_LogMapCoord($a_s_Label = "manual")
 	Local $l_f_X = Agent_GetAgentInfo(-2, "X")
 	Local $l_f_Y = Agent_GetAgentInfo(-2, "Y")
-	If $l_f_X = 0 And $l_f_Y = 0 Then Return False
+	If $l_f_X = 0 And $l_f_Y = 0 Then
+		Out("Log XY: player XY is 0,0 (not in a map / not attached?)")
+		Return False
+	EndIf
 	If Not CombatLogger_EnsureMapCoordLog() Then Return False
 
 	Local $l_s_Ts = @YEAR & "-" & @MON & "-" & @MDAY & " " & @HOUR & ":" & @MIN & ":" & @SEC
@@ -217,8 +226,11 @@ Func CombatLogger_LogMapCoord($a_s_Label = "manual")
 	Local $l_s_Line = $l_s_Ts & "," & $l_i_Map & "," & $a_s_Label & "," & _
 		Round($l_f_X, 2) & "," & Round($l_f_Y, 2)
 
-	Local $l_h = FileOpen($g_s_MapCoordLogFile, $FO_APPEND)
-	If $l_h = -1 Then Return False
+	Local $l_h = FileOpen($g_s_MapCoordLogFile, $FO_APPEND + $FO_CREATEPATH)
+	If $l_h = -1 Then
+		Out("Log XY: could not append to " & $g_s_MapCoordLogFile)
+		Return False
+	EndIf
 	FileWriteLine($l_h, $l_s_Line)
 	FileClose($l_h)
 

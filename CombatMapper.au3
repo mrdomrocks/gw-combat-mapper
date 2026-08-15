@@ -35,6 +35,8 @@ Global $g_b_ResumeRequested = False
 Global $g_bAutoStart = False
 Global $g_s_MainCharName = ""
 Global $g_s_SelectedTarget = "Current Map"
+Global $g_b_StartRequested = False
+Global $g_b_LogCoordBusy = False
 #EndRegion Globals
 
 MapCatalog_Init()
@@ -95,9 +97,10 @@ $g_h_StopButton = GUICtrlCreateButton("Stop", 539, 55, 58, 25)
 GUICtrlSetOnEvent($g_h_StopButton, "GuiButtonHandler")
 GUICtrlSetState($g_h_StopButton, $GUI_DISABLE)
 
+; Push-like checkbox so the click latches; polled like Pause because GUIOnEvent
+; does not run while StartBot / Pathfinder_MoveTo is on the stack.
 Global $g_h_LogCoordButton
-$g_h_LogCoordButton = GUICtrlCreateButton("Log XY", 603, 55, 58, 25)
-GUICtrlSetOnEvent($g_h_LogCoordButton, "GuiButtonHandler")
+$g_h_LogCoordButton = GUICtrlCreateCheckbox("Log XY", 603, 55, 58, 25, BitOR($BS_PUSHLIKE, $BS_AUTOCHECKBOX))
 
 $g_h_RefreshButton = GUICtrlCreateButton("Refresh", 520, 90, 58, 20)
 GUICtrlSetOnEvent($g_h_RefreshButton, "GuiButtonHandler")
@@ -121,13 +124,14 @@ _GUICtrlRichEdit_SetBkColor($g_h_EditText, $COLOR_WHITE)
 GUICtrlCreateGroup("", -99, -99, 1, 1)
 GUISetOnEvent($GUI_EVENT_CLOSE, "_Exit")
 GUISetState(@SW_SHOW)
+AdLibRegister("CombatMapper_PollGui", 50)
 #EndRegion GUI
 
 Out("GwAu3 Map Coverage Combat Logger")
 Out("Target: Current Map | single LocationsIDS title | or TOA Ascalon Caravan sequence.")
 Out("Caravan: transit to North Kryta, then lawnmower+log each map (SmartCast).")
 Out("Tip: smoke-test one map with a tight AABB first.")
-Out("Log XY: append player position to logs/map_waypoints_<MapID>.csv (works while paused)." & @CRLF)
+Out("Log XY: append player position to logs/map_waypoints_<MapID>.csv (button or F7; works while paused)." & @CRLF)
 
 Core_AutoStart()
 
@@ -137,6 +141,11 @@ HotKeySet("{F9}", "HotKey_Stop")
 
 While 1
 	Sleep(100)
+	CombatMapper_PollGui()
+	If $g_b_StartRequested And Not $g_b_BotRunning Then
+		$g_b_StartRequested = False
+		StartBot()
+	EndIf
 WEnd
 
 #Region Bot
@@ -186,7 +195,6 @@ Func StartBot()
 	GUICtrlSetState($g_h_TargetCombo, $GUI_DISABLE)
 	GUICtrlSetState($g_h_PauseCheckbox, $GUI_UNCHECKED)
 	$g_b_PauseRequested = False
-	AdLibRegister("CombatMapper_SyncPauseFromGui", 50)
 
 	WinSetTitle($g_h_MainGui, "", Player_GetCharName() & " - " & $GC_S_BOT_TITLE)
 	Out("Initialized: " & Player_GetCharName() & " | MapID=" & Map_GetMapID() & _
@@ -213,7 +221,21 @@ Func StopBot()
 	UpdateStatusLabel("stopped")
 EndFunc
 
-; Pause checkbox is polled (GUIOnEvent handlers do not run during Pathfinder_MoveTo).
+; Pause + Log XY are polled: GUIOnEvent does not run during Pathfinder_MoveTo.
+Func CombatMapper_PollGui()
+	CombatMapper_PollLogCoordFromGui()
+	CombatMapper_SyncPauseFromGui()
+EndFunc
+
+Func CombatMapper_PollLogCoordFromGui()
+	If $g_b_LogCoordBusy Then Return
+	If Not GetChecked($g_h_LogCoordButton) Then Return
+	$g_b_LogCoordBusy = True
+	GUICtrlSetState($g_h_LogCoordButton, $GUI_UNCHECKED)
+	LogMapCoordButton()
+	$g_b_LogCoordBusy = False
+EndFunc
+
 Func CombatMapper_SyncPauseFromGui()
 	If Not $g_b_BotRunning Then Return
 	Local $bWant = GetChecked($g_h_PauseCheckbox)
@@ -221,8 +243,8 @@ Func CombatMapper_SyncPauseFromGui()
 	$g_b_PauseRequested = $bWant
 	If $bWant Then
 		Agent_CancelAction()
-		Out("Paused — manual movement OK, F7 to log XY, F8 to resume.")
-		UpdateStatusLabel("PAUSED | F7 log XY")
+		Out("Paused — manual movement OK, Log XY or F7, F8 to resume.")
+		UpdateStatusLabel("PAUSED | Log XY or F7")
 	Else
 		Out("Resumed.")
 		UpdateStatusLabel("running")
@@ -262,12 +284,12 @@ EndFunc
 ; cancel is overwritten by the next walk command. Do not cancel inside the wait loop —
 ; that would eat click-to-move used for F7 coordinate logging.
 Func CombatMapper_WaitIfPaused()
-	CombatMapper_SyncPauseFromGui()
+	CombatMapper_PollGui()
 	If Not $g_b_PauseRequested Then Return
 	Agent_CancelAction()
 	While $g_b_PauseRequested And Not $g_b_StopRequested
 		Sleep(100)
-		CombatMapper_SyncPauseFromGui()
+		CombatMapper_PollGui()
 	WEnd
 EndFunc
 
@@ -292,12 +314,14 @@ EndFunc
 
 Func LogMapCoordButton()
 	If Not _EnsureGameAttachedForLogging() Then
-		MsgBox(0, "Log XY", "Attach to Guild Wars first (enter character name or Start once).")
+		Out("Log XY: attach to Guild Wars first (pick a character or Start once).")
+		UpdateStatusLabel("Log XY failed — not attached")
 		Return
 	EndIf
 	CombatLogger_LoadConfig()
 	If Not CombatLogger_LogMapCoord("manual") Then
 		Out("ERROR: Could not log map coordinate.")
+		UpdateStatusLabel("Log XY failed")
 		Return
 	EndIf
 	Local $l_f_X = Agent_GetAgentInfo(-2, "X")
@@ -309,7 +333,7 @@ Func LogMapCoordButton()
 EndFunc
 
 Func _SetIdleUiState()
-	AdLibUnRegister("CombatMapper_SyncPauseFromGui")
+	$g_b_StartRequested = False
 	$g_b_PauseRequested = False
 	GUICtrlSetState($g_h_PauseCheckbox, $GUI_UNCHECKED)
 	GUICtrlSetState($g_h_StartButton, $GUI_ENABLE)
@@ -679,7 +703,7 @@ EndFunc
 
 ; Combined CallFunc for Pathfinder_MoveTo
 Func CombatMapper_Tick()
-	CombatMapper_SyncPauseFromGui()
+	CombatMapper_PollGui()
 	CombatMapper_WaitIfPaused()
 	If $g_b_StopRequested Then Return
 	SmartCast_EnsureReady(False)
@@ -709,11 +733,9 @@ EndFunc
 Func GuiButtonHandler()
 	Switch @GUI_CtrlId
 		Case $g_h_StartButton
-			StartBot()
+			$g_b_StartRequested = True
 		Case $g_h_StopButton
 			StopBot()
-		Case $g_h_LogCoordButton
-			LogMapCoordButton()
 		Case $g_h_RefreshButton
 			GUICtrlSetData($g_h_NameCombo, "")
 			GUICtrlSetData($g_h_NameCombo, Scanner_GetLoggedCharNames())
