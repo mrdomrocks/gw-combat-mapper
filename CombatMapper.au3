@@ -632,68 +632,93 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 	Out("Starting coverage sweep: " & $g_i_CoverageCount & " waypoints, aggro=" & $g_f_AggroRange & _
 		" | MapID=" & Map_GetMapID() & " | SmartCast=" & $g_b_SmartCastEnabled & _
-		" | Loot=" & Int($g_b_LootPickupEnabled))
+		" | Loot=" & Int($g_b_LootPickupEnabled) & Coverage_PassLogSuffix())
 
 	Local Const $GC_I_WAYPOINT_TIMEOUT_MS = 120000
 	Local Const $GC_I_WAYPOINT_MAX_RETRIES = 3
-	Local $l_i_WaypointRetries = 0
+	Local $l_b_VanquishedAbort = False
+	Local $l_b_MoveInterrupted = False
 
 	Coverage_ConfigurePathfinder(False)
 
-	While $g_b_BotRunning And Not $g_b_StopRequested And Not Coverage_IsComplete()
-		CombatMapper_WaitIfPaused()
-		If $g_b_StopRequested Then ExitLoop
-		If VanquishCheck_IsAreaVanquished() Then
-			Out("Coverage abort — area vanquished; switching to portal route.")
-			$g_i_CoverageIndex = $g_i_CoverageCount
-			ExitLoop
+	While $g_b_BotRunning And Not $g_b_StopRequested
+		Local $l_i_WaypointRetries = 0
+		If $g_i_CoverageRepeatPass > 0 Then
+			Out("Vanquish repeat " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & _
+				" — walking all " & $g_i_CoverageCount & " waypoints again.")
 		EndIf
-		Coverage_TrySkipPassedWaypoints($GC_F_COVERAGE_WAYPOINT_REACHED)
 
-		Local $l_f_X = 0, $l_f_Y = 0
-		If Not Coverage_GetCurrentPoint($l_f_X, $l_f_Y) Then ExitLoop
-
-		Local $l_f_DistBefore = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
-
-		UpdateStatusLabel("moving " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & _
-			" -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ") | events=" & CombatLogger_GetCount())
-		Out("Coverage " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & _
-			" -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ") dist=" & Round($l_f_DistBefore))
-
-		SmartCast_EnsureReady(False)
-		Local $hMove = TimerInit()
-		Local $l_b_Ok = Pathfinder_MoveTo($l_f_X, $l_f_Y, -1, "UAI_GetObstacles", _
-			$g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
-		LootPickup_Sweep()
-
-		Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
-
-		If Not $l_b_Ok Then
-			If $g_b_StopRequested Then
-				Out("Pathfinder_MoveTo stopped by user.")
-			Else
-				Out("Pathfinder_MoveTo interrupted (map change / party defeated). Stopping map sweep.")
+		While $g_b_BotRunning And Not $g_b_StopRequested And Not Coverage_IsComplete()
+			CombatMapper_WaitIfPaused()
+			If $g_b_StopRequested Then ExitLoop
+			If VanquishCheck_IsAreaVanquished() Then
+				Out("Coverage abort — area vanquished; switching to portal route.")
+				$g_i_CoverageIndex = $g_i_CoverageCount
+				$l_b_VanquishedAbort = True
+				ExitLoop
 			EndIf
+			Coverage_TrySkipPassedWaypoints($GC_F_COVERAGE_WAYPOINT_REACHED)
+
+			Local $l_f_X = 0, $l_f_Y = 0
+			If Not Coverage_GetCurrentPoint($l_f_X, $l_f_Y) Then ExitLoop
+
+			Local $l_f_DistBefore = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
+
+			UpdateStatusLabel("moving " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & _
+				Coverage_PassLogSuffix() & " -> (" & Round($l_f_X) & "," & Round($l_f_Y) & _
+				") | events=" & CombatLogger_GetCount())
+			Out("Coverage " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix() & _
+				" -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ") dist=" & Round($l_f_DistBefore))
+
+			SmartCast_EnsureReady(False)
+			Local $hMove = TimerInit()
+			Local $l_b_Ok = Pathfinder_MoveTo($l_f_X, $l_f_Y, -1, "UAI_GetObstacles", _
+				$g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
+			LootPickup_Sweep()
+
+			Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
+
+			If Not $l_b_Ok Then
+				If $g_b_StopRequested Then
+					Out("Pathfinder_MoveTo stopped by user.")
+				Else
+					Out("Pathfinder_MoveTo interrupted (map change / party defeated). Stopping map sweep.")
+				EndIf
+				$l_b_MoveInterrupted = True
+				ExitLoop
+			EndIf
+
+			If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
+				Out("Waypoint " & ($g_i_CoverageIndex + 1) & " reached (dist=" & Round($l_f_DistAfter) & ").")
+				Coverage_Advance()
+				Coverage_MarkWaypointReached()
+				$l_i_WaypointRetries = 0
+			ElseIf TimerDiff($hMove) > $GC_I_WAYPOINT_TIMEOUT_MS Then
+				Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — timeout (dist=" & Round($l_f_DistAfter) & ").")
+				Coverage_Advance()
+				$l_i_WaypointRetries = 0
+			ElseIf $l_i_WaypointRetries >= $GC_I_WAYPOINT_MAX_RETRIES Then
+				Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — max retries (dist=" & Round($l_f_DistAfter) & ").")
+				Coverage_Advance()
+				$l_i_WaypointRetries = 0
+			Else
+				$l_i_WaypointRetries += 1
+				Out("Retry waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistAfter) & _
+					" (" & $l_i_WaypointRetries & "/" & $GC_I_WAYPOINT_MAX_RETRIES & ")")
+			EndIf
+		WEnd
+
+		If $l_b_VanquishedAbort Or $l_b_MoveInterrupted Or $g_b_StopRequested Or Not $g_b_BotRunning Then ExitLoop
+		If Not Coverage_IsComplete() Then ExitLoop
+		If VanquishCheck_IsAreaVanquished() Then
+			$l_b_VanquishedAbort = True
 			ExitLoop
 		EndIf
+		If Not Coverage_CanStartVanquishRepeat() Then ExitLoop
 
-		If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
-			Out("Waypoint " & ($g_i_CoverageIndex + 1) & " reached (dist=" & Round($l_f_DistAfter) & ").")
-			Coverage_Advance()
-			$l_i_WaypointRetries = 0
-		ElseIf TimerDiff($hMove) > $GC_I_WAYPOINT_TIMEOUT_MS Then
-			Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — timeout (dist=" & Round($l_f_DistAfter) & ").")
-			Coverage_Advance()
-			$l_i_WaypointRetries = 0
-		ElseIf $l_i_WaypointRetries >= $GC_I_WAYPOINT_MAX_RETRIES Then
-			Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — max retries (dist=" & Round($l_f_DistAfter) & ").")
-			Coverage_Advance()
-			$l_i_WaypointRetries = 0
-		Else
-			$l_i_WaypointRetries += 1
-			Out("Retry waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistAfter) & _
-				" (" & $l_i_WaypointRetries & "/" & $GC_I_WAYPOINT_MAX_RETRIES & ")")
-		EndIf
+		Out("Vanquish run complete, area still open — repeating all coordinates (" & _
+			($g_i_CoverageRepeatPass + 1) & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & ").")
+		Coverage_StartVanquishRepeat()
 	WEnd
 
 	If Coverage_IsComplete() And Not $g_b_StopRequested Then
