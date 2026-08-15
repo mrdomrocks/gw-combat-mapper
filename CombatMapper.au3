@@ -397,7 +397,7 @@ Func RunCaravanSequence()
 			Out("Resume on caravan spine: " & $g_a_AscalonCaravanPlan[$l_i_CurrentStage][8] & _
 				" (stage " & ($l_i_CurrentStage + 1) & "/" & $GC_I_ASCALON_CARAVAN_MAP_COUNT & ")")
 			SmartCast_EnsureReady(True)
-			VanquishCheck_OnMapLoaded()
+			VanquishCheck_WaitUntilReady()
 			If $l_i_CurrentStage >= $l_i_LogStartStage Then
 				If Not _CaravanProcessMapArrival($g_a_AscalonCaravanPlan[$l_i_CurrentStage][8], $l_i_LogStartStage, $l_s_LogStart) Then
 					$g_b_BotRunning = False
@@ -430,7 +430,7 @@ Func RunCaravanSequence()
 
 	; If LogStart is the first map, sweep before leaving
 	If 0 >= $l_i_LogStartStage Then
-		VanquishCheck_OnMapLoaded()
+		VanquishCheck_WaitUntilReady()
 		If Not _CaravanProcessMapArrival($l_s_First, $l_i_LogStartStage, $l_s_LogStart) Then
 			$g_b_BotRunning = False
 			_SetIdleUiState()
@@ -470,7 +470,7 @@ Func RunCaravanSequence()
 		$g_b_CaravanPreferPortalRoute = True
 		SmartCast_Invalidate()
 		SmartCast_EnsureReady(True)
-		VanquishCheck_OnMapLoaded()
+		VanquishCheck_WaitUntilReady()
 
 		; Arrived on Next: from LogStart onward, log + sweep unless HM vanquished
 		If ($i + 1) >= $l_i_LogStartStage Then
@@ -492,6 +492,7 @@ EndFunc
 ; On explorable arrival: enable logging if needed, sweep route unless HM vanquished.
 ; Vanquished: leave via recorded caravan portal routes. Unvanquished: farm then Pathfinder hop.
 Func _CaravanProcessMapArrival($a_s_Title, $a_i_LogStartStage, $a_s_LogStartTitle)
+	VanquishCheck_WaitUntilReady(False)
 	If VanquishCheck_IsAreaVanquished() Then
 		$g_b_CaravanPreferPortalRoute = True
 		Out("Skip sweep on " & $a_s_Title & " — already vanquished; using caravan portal route to leave.")
@@ -520,7 +521,7 @@ Func _CaravanSweepCurrentMap($a_s_Title)
 		Return False
 	EndIf
 
-	VanquishCheck_OnMapLoaded(False)
+	VanquishCheck_WaitUntilReady(False)
 	If VanquishCheck_IsAreaVanquished() Then
 		Out("Skip lawnmower on " & $a_s_Title & " — HM vanquish complete.")
 		Return True
@@ -600,6 +601,17 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	EndIf
 
 	SmartCast_EnsureReady(True)
+	VanquishCheck_WaitUntilReady(False)
+	If VanquishCheck_IsAreaVanquished() Then
+		Out("Skip coverage sweep — area already vanquished; leave via portal route.")
+		$g_i_CoverageIndex = $g_i_CoverageCount
+		$g_b_SweepActive = False
+		If Not MapCatalog_IsSequenceSelection($g_s_SelectedTarget) Then
+			$g_b_BotRunning = False
+			_SetIdleUiState()
+		EndIf
+		Return
+	EndIf
 
 	Local $l_b_HaveRoute = False
 	If $a_b_AllowResume And $g_b_ResumeRequested Then
@@ -631,6 +643,11 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	While $g_b_BotRunning And Not $g_b_StopRequested And Not Coverage_IsComplete()
 		CombatMapper_WaitIfPaused()
 		If $g_b_StopRequested Then ExitLoop
+		If VanquishCheck_IsAreaVanquished() Then
+			Out("Coverage abort — area vanquished; switching to portal route.")
+			$g_i_CoverageIndex = $g_i_CoverageCount
+			ExitLoop
+		EndIf
 		Coverage_TrySkipPassedWaypoints($GC_F_COVERAGE_WAYPOINT_REACHED)
 
 		Local $l_f_X = 0, $l_f_Y = 0

@@ -1,4 +1,5 @@
 #include-once
+#include "..\VanquishCheck.au3"
 
 ; Ascalon caravan hop plan metadata used by SpecialRoute_TempleOfTheAgesAscalonCaravan.
 ; Continuous portal spine (no planned resign breaks):
@@ -243,8 +244,9 @@ Func _Vanquisher_AscalonCaravanStageScriptName($iStage)
 EndFunc
 
 Func _Vanquisher_AscalonCaravanIsStageHistoricallyVanquished($iStage)
-	; Runtime-only in combat mapper: historical scan not available; use VanquishCheck on map entry.
-	Return False
+	_Vanquisher_InitAscalonCaravanPlan()
+	If $iStage < 0 Or $iStage >= $GC_I_ASCALON_CARAVAN_MAP_COUNT Then Return False
+	Return VanquishCheck_IsMapHistoricallyVanquished(Number($g_a_AscalonCaravanPlan[$iStage][0]))
 EndFunc
 
 ; First stage from $iFromStage that is not marked vanquished by map scan; or map count if all done.
