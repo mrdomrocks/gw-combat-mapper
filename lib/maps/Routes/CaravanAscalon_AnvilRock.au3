@@ -7,6 +7,7 @@ Global $aCaravanAscalon_AnvilRockPath = [ _
 	[-17375, 9389], _
 	[-19120, 4717], _
 	[-15928, 7944], _
+	[-15298.88, 9475.63], _
 	[-15630.38, 1368.19], _
 	[-15534.49, 3188.38], _
 	[-15500, 4183], _
@@ -25,6 +26,8 @@ Global $aCaravanAscalon_AnvilRockPath = [ _
 	[-7252.8901, -8824.2695], _
 	[-5484, -7578], _
 	[-6502, -15318], _
+	[-6110.72, -14905.75], _
+	[-5999.46, -13302.35], _
 	[-5190, -9535], _
 	[-6673, -15732], _
 	[-4528, -7218], _
@@ -132,7 +135,7 @@ Global $aCaravanAscalon_AnvilRockPath = [ _
 	[-17565, 10665] _
 ]
 
-Global Const $GC_I_ROUTE_AnvilRock_COUNT = 127
+Global Const $GC_I_ROUTE_AnvilRock_COUNT = 130
 
 Func MapRoute_GetAnvilRock(ByRef $a_a_X, ByRef $a_a_Y)
 	Return MapRoute_CopyPath1D($aCaravanAscalon_AnvilRockPath, $a_a_X, $a_a_Y)
