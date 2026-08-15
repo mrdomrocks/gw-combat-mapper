@@ -80,23 +80,23 @@ $g_h_ResumeCheckbox = GUICtrlCreateCheckbox("Resume coverage", 440, 27, 120, 24)
 GUICtrlSetOnEvent($g_h_ResumeCheckbox, "GuiButtonHandler")
 
 GUICtrlCreateLabel("Target:", 24, 60, 45, 18)
-$g_h_TargetCombo = GUICtrlCreateCombo("", 70, 56, 320, 25, BitOR($CBS_DROPDOWNLIST, $CBS_AUTOHSCROLL))
+$g_h_TargetCombo = GUICtrlCreateCombo("", 70, 56, 280, 25, BitOR($CBS_DROPDOWNLIST, $CBS_AUTOHSCROLL))
 GUICtrlSetData($g_h_TargetCombo, MapCatalog_GetComboString(), IniRead($GC_S_CONFIG, "Travel", "LastTarget", "Current Map"))
 
-$g_h_StartButton = GUICtrlCreateButton("Start", 400, 55, 58, 25)
+$g_h_StartButton = GUICtrlCreateButton("Start", 360, 55, 58, 25)
 GUICtrlSetOnEvent($g_h_StartButton, "GuiButtonHandler")
 
 Global $g_h_PauseCheckbox
-$g_h_PauseCheckbox = GUICtrlCreateCheckbox("Paused (F8)", 463, 55, 110, 24)
+$g_h_PauseCheckbox = GUICtrlCreateCheckbox("Paused (F8)", 426, 55, 105, 24)
 GUICtrlSetOnEvent($g_h_PauseCheckbox, "CombatMapper_OnPauseCheckbox")
 GUICtrlSetState($g_h_PauseCheckbox, $GUI_DISABLE)
 
-$g_h_StopButton = GUICtrlCreateButton("Stop", 526, 55, 58, 25)
+$g_h_StopButton = GUICtrlCreateButton("Stop", 539, 55, 58, 25)
 GUICtrlSetOnEvent($g_h_StopButton, "GuiButtonHandler")
 GUICtrlSetState($g_h_StopButton, $GUI_DISABLE)
 
 Global $g_h_LogCoordButton
-$g_h_LogCoordButton = GUICtrlCreateButton("Log XY", 589, 55, 58, 25)
+$g_h_LogCoordButton = GUICtrlCreateButton("Log XY", 603, 55, 58, 25)
 GUICtrlSetOnEvent($g_h_LogCoordButton, "GuiButtonHandler")
 
 $g_h_RefreshButton = GUICtrlCreateButton("Refresh", 520, 90, 58, 20)
