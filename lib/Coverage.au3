@@ -18,6 +18,12 @@ Global $g_f_BoundPad = 15000
 Global Const $GC_S_COVERAGE_PROGRESS = @ScriptDir & "\coverage_progress.ini"
 Global Const $GC_S_COVERAGE_ROUTE = @ScriptDir & "\coverage_route.csv"
 Global Const $GC_F_COVERAGE_WAYPOINT_REACHED = 400
+; Extra full-route walks after the initial vanquish pass (stop early if the area completes).
+Global Const $GC_I_VANQUISH_ROUTE_REPEATS = 2
+
+Global $g_b_CoverageIsVanquishRoute = False
+Global $g_i_CoverageRepeatPass = 0
+Global $g_b_CoverageHoldSkipPassed = False
 
 ; Provided by CombatMapper.au3
 Global $g_b_BotRunning = False
@@ -67,6 +73,9 @@ Func _Coverage_ResetRoute()
 	$g_a_CoverageY[0] = 0
 	$g_i_CoverageCount = 0
 	$g_i_CoverageIndex = 0
+	$g_b_CoverageIsVanquishRoute = False
+	$g_i_CoverageRepeatPass = 0
+	$g_b_CoverageHoldSkipPassed = False
 EndFunc
 
 ; Copy parallel X/Y arrays into globals.
@@ -257,7 +266,9 @@ Func Coverage_ConfigurePathfinder($a_b_Verbose = False)
 EndFunc
 
 ; Skip waypoints already reached or passed (fight pull / overshoot on vanquish reversals).
+; Held at the start of a vanquish repeat so the walk back to waypoint 1 is not skipped.
 Func Coverage_TrySkipPassedWaypoints($a_f_ReachDist = $GC_F_COVERAGE_WAYPOINT_REACHED)
+	If $g_b_CoverageHoldSkipPassed Then Return
 	If $g_i_CoverageCount < 2 Then Return
 
 	While $g_i_CoverageIndex < $g_i_CoverageCount - 1
@@ -296,9 +307,13 @@ Func Coverage_BuildRoute($a_b_Verbose = True)
 			Coverage_ConfigurePathfinder($a_b_Verbose)
 			_Coverage_SetRoute1D($l_a_RouteX, $l_a_RouteY, $l_i_RouteCount)
 			$g_i_CoverageIndex = 0
+			$g_b_CoverageIsVanquishRoute = True
+			$g_i_CoverageRepeatPass = 0
+			$g_b_CoverageHoldSkipPassed = False
 			Coverage_SaveRoute()
 			Coverage_SaveProgress()
-			If $a_b_Verbose Then Out("Map route for " & $g_s_CoverageMapTitle & ": " & $l_i_RouteCount & " waypoints (vanquish path)")
+			If $a_b_Verbose Then Out("Map route for " & $g_s_CoverageMapTitle & ": " & $l_i_RouteCount & _
+				" waypoints (vanquish path, up to " & $GC_I_VANQUISH_ROUTE_REPEATS & " extra passes if still open)")
 			Return True
 		ElseIf $a_b_Verbose Then
 			Out("No hand-tuned route for " & $g_s_CoverageMapTitle & " — using lawnmower fallback.")
@@ -337,6 +352,9 @@ Func Coverage_BuildRoute($a_b_Verbose = True)
 	EndIf
 
 	$g_i_CoverageIndex = 0
+	$g_b_CoverageIsVanquishRoute = False
+	$g_i_CoverageRepeatPass = 0
+	$g_b_CoverageHoldSkipPassed = False
 	Coverage_SaveRoute()
 	Coverage_SaveProgress()
 
@@ -399,6 +417,8 @@ Func Coverage_SaveProgress()
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "MinY", $g_f_CovMinY)
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "MaxY", $g_f_CovMaxY)
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "GridStep", $g_f_GridStep)
+	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "IsVanquishRoute", Int($g_b_CoverageIsVanquishRoute))
+	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "RepeatPass", $g_i_CoverageRepeatPass)
 EndFunc
 
 Func Coverage_TryResume($a_b_Verbose = True)
@@ -417,8 +437,13 @@ Func Coverage_TryResume($a_b_Verbose = True)
 	$g_f_CovMinY = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "MinY", String($g_f_CovMinY)))
 	$g_f_CovMaxY = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "MaxY", String($g_f_CovMaxY)))
 	$g_f_GridStep = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "GridStep", String($g_f_GridStep)))
+	$g_b_CoverageIsVanquishRoute = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "IsVanquishRoute", "0")) <> 0
+	$g_i_CoverageRepeatPass = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "RepeatPass", "0"))
+	If $g_i_CoverageRepeatPass < 0 Then $g_i_CoverageRepeatPass = 0
+	If $g_i_CoverageRepeatPass > $GC_I_VANQUISH_ROUTE_REPEATS Then $g_i_CoverageRepeatPass = $GC_I_VANQUISH_ROUTE_REPEATS
+	$g_b_CoverageHoldSkipPassed = ($g_i_CoverageRepeatPass > 0 And $g_i_CoverageIndex = 0)
 
-	If $a_b_Verbose Then Out("Resuming coverage at " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount)
+	If $a_b_Verbose Then Out("Resuming coverage at " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix())
 	Return True
 EndFunc
 
@@ -440,6 +465,29 @@ Func Coverage_Advance()
 	Coverage_SaveProgress()
 EndFunc
 
+; First waypoint of a vanquish repeat was actually reached — skip-passed can resume.
+Func Coverage_MarkWaypointReached()
+	$g_b_CoverageHoldSkipPassed = False
+EndFunc
+
 Func Coverage_IsComplete()
 	Return $g_i_CoverageCount <= 0 Or $g_i_CoverageIndex >= $g_i_CoverageCount
+EndFunc
+
+Func Coverage_CanStartVanquishRepeat()
+	If Not $g_b_CoverageIsVanquishRoute Then Return False
+	If $g_i_CoverageCount < 1 Then Return False
+	Return $g_i_CoverageRepeatPass < $GC_I_VANQUISH_ROUTE_REPEATS
+EndFunc
+
+Func Coverage_StartVanquishRepeat()
+	$g_i_CoverageRepeatPass += 1
+	$g_i_CoverageIndex = 0
+	$g_b_CoverageHoldSkipPassed = True
+	Coverage_SaveProgress()
+EndFunc
+
+Func Coverage_PassLogSuffix()
+	If Not $g_b_CoverageIsVanquishRoute Or $g_i_CoverageRepeatPass < 1 Then Return ""
+	Return " (vanquish repeat " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & ")"
 EndFunc
