@@ -101,11 +101,6 @@ Global $aScoundrelsRiseOutpostPath = [ _
 	[-4334.29, 26859.33] _
 ]
 
-Global $aGriffonsMouthOutpostPath = [ _
-	[-1453.60, 24938.46], _
-	[-4334.29, 26859.33] _
-]
-
 Global $aGriffonsMouthTransitPath = [ _
 	[-2324, -5061], _
 	[98, -2686], _
@@ -144,11 +139,6 @@ Global $aAnvilRockTransitPath = [ _
 ]
 
 Global $aAnvilRockOutpostPath = [ _
-	[-11688, 11666], _
-	[-12281, 11654] _
-]
-
-Global $aIronHorseMineOutpostPath = [ _
 	[-11688, 11666], _
 	[-12281, 11654] _
 ]
