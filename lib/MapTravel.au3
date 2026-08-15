@@ -6,11 +6,15 @@
 #include "LootPickup.au3"
 #include "maps\LocationsIDS.au3"
 #include "maps\GoOutRoutes.au3"
+#include "maps\Caravan Portal Routes.au3"
 
 Global $g_b_HardMode = True
 Global $g_s_ActiveTitle = ""
 Global $g_i_GoOutLastMapHandled = 0
 Global $g_i_MapTravelAggro = 0
+; True: leave via recorded caravan portal routes (vanquished / outpost / transit-only).
+; False: leave from the current farm position via dest-aware Pathfinder (just swept).
+Global $g_b_CaravanPreferPortalRoute = True
 
 Func MapTravel_LoadConfig($a_s_ConfigPath = "")
 	If $a_s_ConfigPath = "" Then $a_s_ConfigPath = @ScriptDir & "\config.ini"
@@ -255,6 +259,193 @@ Func MapTravel_TryGetExplorableCrossingPath($a_i_CurrentMap, $a_i_TargetMap, ByR
 	Return False
 EndFunc
 
+Func MapTravel_CopyReversedPath(ByRef $a_af2_Src, ByRef $a_af2_Dest)
+	If Not IsArray($a_af2_Src) Then Return False
+	Local $l_i_N = UBound($a_af2_Src)
+	If $l_i_N < 1 Then Return False
+	Local $l_a[$l_i_N][2]
+	Local $i
+	For $i = 0 To $l_i_N - 1
+		$l_a[$i][0] = $a_af2_Src[$l_i_N - 1 - $i][0]
+		$l_a[$i][1] = $a_af2_Src[$l_i_N - 1 - $i][1]
+	Next
+	$a_af2_Dest = $l_a
+	Return True
+EndFunc
+
+; Recorded from->to portal walk for the Ascalon caravan spine.
+Func MapTravel_TryGetCaravanPortalPath($a_i_FromMap, $a_s_TargetTitle, ByRef $a_a_Path, ByRef $a_s_Label)
+	If $a_i_FromMap <= 0 Or $a_s_TargetTitle = "" Then Return False
+
+	If $a_i_FromMap = $TheBlackCurtain_Outpost And $a_s_TargetTitle = "TheBlackCurtain" Then
+		$a_a_Path = $aTheBlackCurtainOutpostPath
+		$a_s_Label = "TOA->BlackCurtain "
+		Return True
+	EndIf
+
+	Switch $a_s_TargetTitle
+		Case "CursedLands"
+			If $a_i_FromMap = $TheBlackCurtain_Map Then
+				$a_a_Path = $aBlackCurtainToCursedLandsPortalPath
+				$a_s_Label = "BlackCurtain->Cursed "
+				Return True
+			EndIf
+		Case "NeboTerrace"
+			If $a_i_FromMap = $CursedLands_Map Then
+				$a_a_Path = $aCursedLandsToNeboTerracePortalPath
+				$a_s_Label = "Cursed->Nebo "
+				Return True
+			EndIf
+		Case "NorthKrytaProvince"
+			If $a_i_FromMap = $NeboTerrace_Map Then
+				$a_a_Path = $aNeboTerraceToNorthKrytaPortalPath
+				$a_s_Label = "Nebo->NKP "
+				Return True
+			EndIf
+		Case "ScoundrelsRise"
+			If $a_i_FromMap = $NorthKrytaProvince_Map Then
+				$a_a_Path = $aNorthKrytaToScoundrelsRisePortalPath
+				$a_s_Label = "NKP->Scoundrels "
+				Return True
+			EndIf
+		Case "GriffonsMouth"
+			If $a_i_FromMap = $ScoundrelsRise_Map Then
+				$a_a_Path = $aScoundrelsRiseToGriffonsMouthPortalPath
+				$a_s_Label = "Scoundrels->Griffons "
+				Return True
+			EndIf
+		Case "DeldrimorBowl"
+			If $a_i_FromMap = $GriffonsMouth_Map Then
+				$a_a_Path = $aGriffonsMouthToDeldrimorBowlPortalPath
+				$a_s_Label = "Griffons->Deldrimor "
+				Return True
+			EndIf
+		Case "AnvilRock"
+			If $a_i_FromMap = $DeldrimorBowl_Map Then
+				$a_a_Path = $aDeldrimorBowlToAnvilRockPortalPath
+				$a_s_Label = "Deldrimor->Anvil "
+				Return True
+			EndIf
+		Case "IronHorseMine"
+			If $a_i_FromMap = $AnvilRock_Map Then
+				$a_a_Path = $aAnvilRockToIronHorseMinePortalPath
+				$a_s_Label = "Anvil->IHM "
+				Return True
+			EndIf
+		Case "TravelersVale"
+			If $a_i_FromMap = $IronHorseMine_Map Then
+				$a_a_Path = $aIronHorseMineToTravelersValePortalPath
+				$a_s_Label = "IHM->TV "
+				Return True
+			EndIf
+		Case "AscalonFoothills"
+			If $a_i_FromMap = $TravelersVale_Map Then
+				$a_a_Path = $aTravelersValeToAscalonFoothillsPortalPath
+				$a_s_Label = "TV->AF "
+				Return True
+			EndIf
+		Case "DiessaLowlands"
+			If $a_i_FromMap = $AscalonFoothills_Map Then
+				$a_a_Path = $aAscalonFoothillsToDiessaLowlandsPortalPath
+				$a_s_Label = "AF->Diessa "
+				Return True
+			EndIf
+			; Return from FTC/DG: walk FTC->DG backward to the Diessa portal.
+			If $a_i_FromMap = $FlameTempleCorridor_Map Then
+				If MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_a_Path) Then
+					$a_s_Label = "FTC->Diessa (rev) "
+					Return True
+				EndIf
+			EndIf
+		Case "FlameTempleCorridor"
+			If $a_i_FromMap = $DiessaLowlands_Map Then
+				$a_a_Path = $aDiessaLowlandsToFlameTempleCorridorPortalPath
+				$a_s_Label = "Diessa->FTC "
+				Return True
+			EndIf
+			; Return from Dragon's Gullet: walk FTC->DG backward to the FTC portal.
+			If $a_i_FromMap = $DragonsGullet_Map Then
+				If MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_a_Path) Then
+					$a_s_Label = "DG->FTC (rev) "
+					Return True
+				EndIf
+			EndIf
+		Case "DragonsGullet"
+			If $a_i_FromMap = $FlameTempleCorridor_Map Then
+				$a_a_Path = $aFlameTempleCorridorToDragonsGulletPortalPath
+				$a_s_Label = "FTC->DG "
+				Return True
+			EndIf
+		Case "TheBreach"
+			If $a_i_FromMap = $DiessaLowlands_Map Then
+				$a_a_Path = $aDiessaLowlandsToTheBreachPortalPath
+				$a_s_Label = "Diessa->Breach "
+				Return True
+			EndIf
+			; No DG->Breach recording: reverse back through FTC then Diessa.
+			If $a_i_FromMap = $DragonsGullet_Map Then
+				If MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_a_Path) Then
+					$a_s_Label = "DG->FTC (rev toward Breach) "
+					Return True
+				EndIf
+			EndIf
+			If $a_i_FromMap = $FlameTempleCorridor_Map Then
+				If MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_a_Path) Then
+					$a_s_Label = "FTC->Diessa (rev toward Breach) "
+					Return True
+				EndIf
+			EndIf
+		Case "OldAscalon"
+			If $a_i_FromMap = $TheBreach_Map Then
+				$a_a_Path = $aTheBreachToOldAscalonPortalPath
+				$a_s_Label = "Breach->OldAscalon "
+				Return True
+			EndIf
+		Case "RegentValley"
+			If $a_i_FromMap = $OldAscalon_Map Then
+				$a_a_Path = $aOldAscalonToRegentValleyPortalPath
+				$a_s_Label = "OldAscalon->Regent "
+				Return True
+			EndIf
+		Case "PockmarkFlats"
+			If $a_i_FromMap = $RegentValley_Map Then
+				$a_a_Path = $aRegentValleyToPockmarkFlatsPortalPath
+				$a_s_Label = "Regent->Pockmark "
+				Return True
+			EndIf
+		Case "EasternFrontier"
+			If $a_i_FromMap = $PockmarkFlats_Map Then
+				$a_a_Path = $aPockmarkFlatsToEasternFrontierPortalPath
+				$a_s_Label = "Pockmark->EF "
+				Return True
+			EndIf
+	EndSwitch
+	Return False
+EndFunc
+
+Func MapTravel_ShouldPreferCaravanPortalRoute()
+	If Not Map_GetInstanceInfo("IsExplorable") Then Return True
+	If $g_b_CaravanPreferPortalRoute Then Return True
+	If VanquishCheck_IsAreaVanquished() Then Return True
+	Return False
+EndFunc
+
+Func MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle)
+	Local $a_Path, $l_s_Label = ""
+	If Not MapTravel_TryGetCaravanPortalPath(Map_GetMapID(), $a_s_TargetTitle, $a_Path, $l_s_Label) Then Return False
+	Out("Caravan portal route " & $l_s_Label & "(combat on, F8 pause for manual XY)")
+	If MapTravel_RunPortalRoute($a_Path, $l_s_Label) Then Return True
+	Out("Caravan portal route " & $l_s_Label & "did not cross (map " & Map_GetMapID() & ").")
+	Return False
+EndFunc
+
+; True when dest-aware beeline would skip the recorded DG->FTC->Diessa return.
+Func MapTravel_SkipDirectBreachHop($a_s_TargetTitle)
+	If $a_s_TargetTitle <> "TheBreach" Then Return False
+	Local $l_i_Map = Map_GetMapID()
+	Return $l_i_Map = $DragonsGullet_Map Or $l_i_Map = $FlameTempleCorridor_Map
+EndFunc
+
 ; Long-crossing GoOutRoutes fallback (Pathfinder beeline is tried first).
 ; $a_b_TransitOnly is kept for callers; map ID already selects the route.
 Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRef $a_s_Label, $a_b_TransitOnly = False)
@@ -324,12 +515,33 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 	Return False
 EndFunc
 
-; Dest-aware Pathfinder hop, then multi-hop graph, then long recorded crossings.
+; Vanquished / outpost / transit-only: recorded caravan portal walk first.
+; Unvanquished after a sweep: dest-aware Pathfinder from the farm position, then fallbacks.
+; DG/FTC -> TheBreach may cross into FTC then Diessa first; only succeed on the target map.
 Func MapTravel_TryPortalToTarget($a_s_TargetTitle, $a_b_TransitOnly = False)
 	Local $l_i_Target = MapCatalog_GetMapID($a_s_TargetTitle)
 	If $l_i_Target > 0 And Map_GetMapID() = $l_i_Target Then Return True
 
-	If $l_i_Target > 0 Then
+	Local $l_b_PreferRecorded = MapTravel_ShouldPreferCaravanPortalRoute()
+	If MapTravel_SkipDirectBreachHop($a_s_TargetTitle) Then $l_b_PreferRecorded = True
+	Local $l_i_Hop = 0
+	While $l_i_Hop < 5 And $l_i_Target > 0 And Map_GetMapID() <> $l_i_Target And Not $g_b_StopRequested
+		$l_i_Hop += 1
+		Local $l_i_Before = Map_GetMapID()
+		If $l_b_PreferRecorded Or $l_i_Hop > 1 Then
+			If MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle) Then
+				If Map_GetMapID() = $l_i_Target Then Return True
+				If Map_GetMapID() <> $l_i_Before Then
+					Out("Portal hop landed on map " & Map_GetMapID() & " — continuing to " & $a_s_TargetTitle)
+					ContinueLoop
+				EndIf
+			EndIf
+		EndIf
+		If Map_GetMapID() = $l_i_Before Then ExitLoop
+	WEnd
+	If $l_i_Target > 0 And Map_GetMapID() = $l_i_Target Then Return True
+
+	If $l_i_Target > 0 And Not MapTravel_SkipDirectBreachHop($a_s_TargetTitle) Then
 		If Map_GetInstanceInfo("IsExplorable") Or Map_IsOutpost(Map_GetMapID()) Then
 			If MapTravel_FindPathToPortalAndCross($l_i_Target, $a_s_TargetTitle) Then Return True
 		EndIf
@@ -340,11 +552,20 @@ Func MapTravel_TryPortalToTarget($a_s_TargetTitle, $a_b_TransitOnly = False)
 
 	Local $a_Path, $l_s_Label = ""
 	If MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, $a_Path, $l_s_Label, $a_b_TransitOnly) Then
-		If MapTravel_RunPortalRoute($a_Path, $l_s_Label) Then Return True
-		Out("Hardcoded portal route to " & $a_s_TargetTitle & " did not cross a portal (map " & Map_GetMapID() & ").")
+		If MapTravel_RunPortalRoute($a_Path, $l_s_Label) Then
+			If Map_GetMapID() = $l_i_Target Then Return True
+		Else
+			Out("Hardcoded portal route to " & $a_s_TargetTitle & " did not cross a portal (map " & Map_GetMapID() & ").")
+		EndIf
 	EndIf
 
-	Return False
+	If Not $l_b_PreferRecorded Then
+		If MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle) Then
+			If Map_GetMapID() = $l_i_Target Then Return True
+		EndIf
+	EndIf
+
+	Return $l_i_Target > 0 And Map_GetMapID() = $l_i_Target
 EndFunc
 
 ; True when a long-crossing recorded fallback exists.

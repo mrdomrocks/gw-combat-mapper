@@ -1,6 +1,7 @@
 #include-once
 
 ; Caravan vanquish route for FlameTempleCorridor (forward pass from vanquish bot).
+; Tail follows FTC->DG portal waypoints to the Dragon's Gullet exit.
 
 Global $aCaravanAscalon_FlameTempleCorridorPath = [ _
 	[-18448, -11278], _
@@ -47,10 +48,19 @@ Global $aCaravanAscalon_FlameTempleCorridorPath = [ _
 	[-9611, -12759], _
 	[-9303, -12518], _
 	[-10359, -9564], _
-	[-11546, -9365] _
+	[-11546, -9365], _
+	[-12983, -8753], _
+	[-12597, -6271], _
+	[-11975, -4276], _
+	[-10411, -4387], _
+	[-8600, -3114], _
+	[-8221, -2061], _
+	[-7238, -1008], _
+	[-4682, -1082], _
+	[-4577, -978] _
 ]
 
-Global Const $GC_I_ROUTE_FlameTempleCorridor_COUNT = 45
+Global Const $GC_I_ROUTE_FlameTempleCorridor_COUNT = 54
 
 
 Func MapRoute_GetFlameTempleCorridor(ByRef $a_a_X, ByRef $a_a_Y)

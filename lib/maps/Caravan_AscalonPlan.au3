@@ -6,7 +6,10 @@
 ; - -> GriffonsMouth -> DeldrimorBowl -> AnvilRock -> IronHorseMine -> TravelersVale
 ; - -> AscalonFoothills -> DiessaLowlands -> FlameTempleCorridor -> DragonsGullet
 ; - -> TheBreach -> OldAscalon -> RegentValley -> PockmarkFlats -> EasternFrontier
-; Between maps: portal catch-up via shared explorable path / neighbor GoOut.
+; Between maps: vanquished maps walk Caravan Portal Routes.au3; open maps farm
+; CaravanAscalon_* then dest-aware Pathfinder / GoOutRoutes. Combat stays on.
+; DG -> TheBreach reverses FTC->DG then FTC->Diessa, then Diessa->Breach.
+; F8 pause still allows click-to-move + F7 XY logging.
 ; Full-route history scan jumps stage to the first open map; GoOut/TryCatchUp portals there.
 ; Resign+TravelTo only as stall recovery when no portal hop can be made.
 ; Never mid-route TravelTo.

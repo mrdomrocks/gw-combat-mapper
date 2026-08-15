@@ -5,6 +5,7 @@
 #include "lib\maps\LocationsIDS.au3"
 #include "lib\maps\Caravan_AscalonPlan.au3"
 #include "lib\maps\GoOutRoutes.au3"
+#include "lib\maps\Caravan Portal Routes.au3"
 #include "lib\MapCatalog.au3"
 #include "lib\MapTravel.au3"
 #include "lib\Coverage.au3"
@@ -258,10 +259,13 @@ Func HotKey_LogCoord()
 EndFunc
 
 ; Block while paused (Pathfinder tick + sweep loops). Stop breaks out.
-; Do not call Agent_CancelAction in the wait loop — that blocks manual movement for coordinate logging.
+; Cancel once on entry: Pathfinder_MoveTo issues Map_MoveLayer before CallFunc, so F8/AdLib
+; cancel is overwritten by the next walk command. Do not cancel inside the wait loop —
+; that would eat click-to-move used for F7 coordinate logging.
 Func CombatMapper_WaitIfPaused()
 	CombatMapper_SyncPauseFromGui()
 	If Not $g_b_PauseRequested Then Return
+	Agent_CancelAction()
 	While $g_b_PauseRequested And Not $g_b_StopRequested
 		Sleep(100)
 		CombatMapper_SyncPauseFromGui()
@@ -352,10 +356,12 @@ Func RunCaravanSequence()
 		$l_s_LogStart = $g_a_AscalonCaravanPlan[0][8]
 	EndIf
 
+	$g_b_CaravanPreferPortalRoute = True
 	Out("=== TOA Ascalon Caravan sequence (" & $GC_I_ASCALON_CARAVAN_MAP_COUNT & " maps) ===")
 	Out("Entry: Temple of the Ages (" & $TheBlackCurtain_Outpost & "), Hard Mode=" & $g_b_HardMode)
 	Out("Transit (no lawnmower) until: " & $l_s_LogStart)
-	Out("From " & $l_s_LogStart & " onward: lawnmower each map + combat coord logging (skip if HM vanquished), then portal to next.")
+	Out("From " & $l_s_LogStart & " onward: vanquish path if open, recorded portal walk if already vanquished.")
+	Out("F8 pause: stop bot walk, click-to-move + F7 log XY, F8 resume.")
 
 	Local $l_i_LoopStart = 0
 	Local $l_b_ResumeOnSpine = False
@@ -438,6 +444,7 @@ Func RunCaravanSequence()
 			ExitLoop
 		EndIf
 
+		$g_b_CaravanPreferPortalRoute = True
 		SmartCast_Invalidate()
 		SmartCast_EnsureReady(True)
 		VanquishCheck_OnMapLoaded()
@@ -446,6 +453,7 @@ Func RunCaravanSequence()
 		If ($i + 1) >= $l_i_LogStartStage Then
 			If Not _CaravanProcessMapArrival($l_s_Next, $l_i_LogStartStage, $l_s_LogStart) Then ExitLoop
 		Else
+			$g_b_CaravanPreferPortalRoute = True
 			Out("Reached " & $l_s_Next & " (transit only until " & $l_s_LogStart & ").")
 		EndIf
 	Next
@@ -459,15 +467,24 @@ Func RunCaravanSequence()
 EndFunc
 
 ; On explorable arrival: enable logging if needed, sweep route unless HM vanquished.
+; Vanquished: leave via recorded caravan portal routes. Unvanquished: farm then Pathfinder hop.
 Func _CaravanProcessMapArrival($a_s_Title, $a_i_LogStartStage, $a_s_LogStartTitle)
 	If VanquishCheck_IsAreaVanquished() Then
-		Out("Skip sweep on " & $a_s_Title & " — already vanquished in Hard Mode.")
+		$g_b_CaravanPreferPortalRoute = True
+		Out("Skip sweep on " & $a_s_Title & " — already vanquished; using caravan portal route to leave.")
 		Return True
 	EndIf
 	If Not _CaravanMaybeStartLogging($a_i_LogStartStage, $a_s_LogStartTitle) Then Return False
 	If Not _CaravanSweepCurrentMap($a_s_Title) Then
 		Out("Lawnmower failed/stopped on " & $a_s_Title & " — stopping caravan.")
 		Return False
+	EndIf
+	If VanquishCheck_IsAreaVanquished() Then
+		$g_b_CaravanPreferPortalRoute = True
+		Out($a_s_Title & " vanquished during sweep — leave via caravan portal route.")
+	Else
+		$g_b_CaravanPreferPortalRoute = False
+		Out($a_s_Title & " still open — leave from farm position (existing portal hop).")
 	EndIf
 	Return True
 EndFunc

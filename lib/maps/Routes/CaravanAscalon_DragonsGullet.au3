@@ -1,6 +1,7 @@
 #include-once
 
 ; Caravan vanquish route for DragonsGullet (forward pass from vanquish bot).
+; Tail ends at the FTC portal so the reversed FTC->DG walk can leave immediately.
 
 Global $aCaravanAscalon_DragonsGulletPath = [ _
 	[-2441, 1199], _
@@ -101,10 +102,12 @@ Global $aCaravanAscalon_DragonsGulletPath = [ _
 	[7390, 3443], _
 	[4111, 3698], _
 	[3658, 3807], _
-	[1460, 5313] _
+	[1460, 5313], _
+	[-2441, 1199], _
+	[-4577, -978] _
 ]
 
-Global Const $GC_I_ROUTE_DragonsGullet_COUNT = 99
+Global Const $GC_I_ROUTE_DragonsGullet_COUNT = 101
 
 
 Func MapRoute_GetDragonsGullet(ByRef $a_a_X, ByRef $a_a_Y)

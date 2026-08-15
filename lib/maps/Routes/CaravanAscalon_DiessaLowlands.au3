@@ -1,6 +1,7 @@
 #include-once
 
 ; Caravan vanquish route for DiessaLowlands (forward pass from vanquish bot).
+; Tail follows Diessa->FTC portal waypoints to the Flame Temple Corridor exit.
 
 Global $aCaravanAscalon_DiessaLowlandsPath = [ _
 	[-20296, 14688], _
@@ -165,10 +166,34 @@ Global $aCaravanAscalon_DiessaLowlandsPath = [ _
 	[-19195, -738], _
 	[-19961, 1863], _
 	[-16989, 1528], _
-	[-16992, -553] _
+	[-16992, -553], _
+	[-14230.8076, 4679.6600], _
+	[-13674.4976, 5275.7065], _
+	[-12959.2419, 6189.6443], _
+	[-11409.5211, 5752.5436], _
+	[-8985.5989, 5553.8615], _
+	[-6760.3588, 5673.0707], _
+	[-5409.3202, 5355.1793], _
+	[-4336.4366, 4600.1871], _
+	[-2190.6694, 5196.2336], _
+	[-879.3672, 6189.6443], _
+	[630.6171, 8295.6751], _
+	[2418.7565, 9567.2409], _
+	[3094.2758, 12030.8995], _
+	[3531.3765, 13977.9846], _
+	[5518.1980, 15726.3875], _
+	[7902.3838, 15607.1782], _
+	[12074.7089, 16600.5890], _
+	[14578.1040, 14971.3953], _
+	[15293.3598, 13302.4653], _
+	[16604.6619, 14494.5582], _
+	[18194.1191, 15368.7596], _
+	[19902.7856, 15170.0775], _
+	[21174.3514, 15567.4418], _
+	[21611.4521, 17037.6897] _
 ]
 
-Global Const $GC_I_ROUTE_DiessaLowlands_COUNT = 163
+Global Const $GC_I_ROUTE_DiessaLowlands_COUNT = 187
 
 
 Func MapRoute_GetDiessaLowlands(ByRef $a_a_X, ByRef $a_a_Y)
