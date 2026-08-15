@@ -5,7 +5,6 @@
 #include "lib\maps\LocationsIDS.au3"
 #include "lib\maps\Caravan_AscalonPlan.au3"
 #include "lib\maps\GoOutRoutes.au3"
-#include "lib\maps\Caravan Portal Routes.au3"
 #include "lib\MapCatalog.au3"
 #include "lib\MapTravel.au3"
 #include "lib\Coverage.au3"

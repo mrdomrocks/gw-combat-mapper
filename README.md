@@ -40,7 +40,7 @@ gw-combat-mapper/
     maps/
       LocationsIDS.au3      # from Guild-Wars-Vanquish-Bot
       Caravan_AscalonPlan.au3
-      GoOutRoutes.au3       # extracted vanquish outpost/transit portal paths
+      GoOutRoutes.au3       # recorded From->To portal walks (caravan + GoOut)
   vendor/GwAu3/
   logs/
 ```

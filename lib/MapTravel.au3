@@ -6,7 +6,6 @@
 #include "LootPickup.au3"
 #include "maps\LocationsIDS.au3"
 #include "maps\GoOutRoutes.au3"
-#include "maps\Caravan Portal Routes.au3"
 
 Global $g_b_HardMode = True
 Global $g_s_ActiveTitle = ""
@@ -252,7 +251,7 @@ EndFunc
 ; Explorable spine crossings keyed by map id (independent of target title string).
 Func MapTravel_TryGetExplorableCrossingPath($a_i_CurrentMap, $a_i_TargetMap, ByRef $a_a_Path, ByRef $a_s_Label)
 	If $a_i_CurrentMap = $NorthKrytaProvince_Map And $a_i_TargetMap = $ScoundrelsRise_Map Then
-		$a_a_Path = $aNorthKrytaProvincePortalPath
+		$a_a_Path = $aNorthKrytaToScoundrelsRisePortalPath
 		$a_s_Label = "NKP->Scoundrels "
 		Return True
 	EndIf
@@ -460,54 +459,54 @@ Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRe
 	Switch $a_s_TargetTitle
 		Case "GriffonsMouth"
 			If $l_i_Map = $GriffonsMouth_Transit Then
-				$a_a_Path = $aGriffonsMouthTransitPath
+				$a_a_Path = $aScoundrelsRiseToGriffonsMouthPortalPath
 				$a_s_Label = "Transit->Griffons "
 				Return True
 			EndIf
 		Case "AnvilRock"
 			If $l_i_Map = $AnvilRock_Transit Then
-				$a_a_Path = $aAnvilRockTransitPath
+				$a_a_Path = $aDeldrimorBowlToAnvilRockPortalPath
 				$a_s_Label = "Transit->Anvil "
 				Return True
 			EndIf
 		Case "IronHorseMine"
 			If $l_i_Map = $IronHorseMine_Transit Then
-				$a_a_Path = $aIronHorseMineTransitPath
+				$a_a_Path = $aAnvilRockToIronHorseMinePortalPath
 				$a_s_Label = "Transit->IHM "
 				Return True
 			EndIf
 		Case "AscalonFoothills"
 			If $l_i_Map = $AscalonFoothills_Transit Then
-				$a_a_Path = $aAscalonFoothillsTransitPath
+				$a_a_Path = $aTravelersValeToAscalonFoothillsPortalPath
 				$a_s_Label = "TV->AF "
 				Return True
 			EndIf
 		Case "DiessaLowlands"
 			If $l_i_Map = $DiessaLowlands_Transit Then
-				$a_a_Path = $aDiessaLowlandsTransitPath
+				$a_a_Path = $aAscalonFoothillsToDiessaLowlandsPortalPath
 				$a_s_Label = "Transit->Diessa "
 				Return True
 			EndIf
 		Case "FlameTempleCorridor"
 			If $l_i_Map = $FlameTempleCorridor_Transit Then
-				$a_a_Path = $aFlameTempleCorridorTransitPath
+				$a_a_Path = $aDiessaLowlandsToFlameTempleCorridorPortalPath
 				$a_s_Label = "Transit->FTC "
 				Return True
 			EndIf
 		Case "DragonsGullet"
 			If $l_i_Map = $DragonsGullet_Transit Then
-				$a_a_Path = $aDragonsGulletTransitPath
+				$a_a_Path = $aFlameTempleCorridorToDragonsGulletPortalPath
 				$a_s_Label = "Transit->DG "
 				Return True
 			EndIf
 			If $l_i_Map = $DragonsGullet_Transit2 Then
-				$a_a_Path = $aDragonsGulletTransit2Path
+				$a_a_Path = $aDiessaLowlandsToFlameTempleCorridorPortalPath
 				$a_s_Label = "Transit2->DG "
 				Return True
 			EndIf
 		Case "TheBreach"
 			If $l_i_Map = $TheBreach_Transit Then
-				$a_a_Path = $aTheBreachTransitPath
+				$a_a_Path = $aDiessaLowlandsToTheBreachPortalPath
 				$a_s_Label = "Transit->Breach "
 				Return True
 			EndIf
