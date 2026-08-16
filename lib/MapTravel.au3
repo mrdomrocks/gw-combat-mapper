@@ -19,7 +19,6 @@ Global $g_f_MapTravelSegToY = 0
 Global $g_b_MapTravelSegActive = False
 Global Const $GC_F_MAPTRAVEL_PORTAL_AGGRO_DEFAULT = 800
 Global Const $GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT = 500
-Global Const $GC_F_MAPTRAVEL_PATHFINDER_SUPPRESS_AGGRO = 1 ; Pathfinder_MoveTo uses CallFunc for corridor combat
 ; True: leave via recorded caravan portal routes (vanquished / outpost / transit-only).
 ; False: leave from the current farm position via dest-aware Pathfinder (just swept).
 Global $g_b_CaravanPreferPortalRoute = True
@@ -65,12 +64,9 @@ Func MapTravel_PointToSegmentDist($a_f_Px, $a_f_Py, $a_f_X1, $a_f_Y1, $a_f_X2, $
 	Return Sqrt(($a_f_Px - $l_f_Cx) ^ 2 + ($a_f_Py - $l_f_Cy) ^ 2)
 EndFunc
 
-; True when a living enemy is on the current portal segment and within PortalAggro of the player.
-Func MapTravel_HasEnemyOnPortalSegment()
-	If Not $g_b_MapTravelSegActive Then Return False
-
+; True when a living enemy is within PortalAggro of the player (portal walks ignore distant packs).
+Func MapTravel_HasNearbyPortalEnemy()
 	Local $l_f_Aggro = MapTravel_GetPortalAggro()
-	Local $l_f_Corridor = $g_f_MapTravelPortalCorridor
 	Local $l_a_Agents = Agent_GetAgentArray(0xDB)
 	If Not IsArray($l_a_Agents) Or $l_a_Agents[0] < 1 Then Return False
 
@@ -83,46 +79,33 @@ Func MapTravel_HasEnemyOnPortalSegment()
 		If Agent_GetAgentInfo($l_p_Agent, "Allegiance") <> 3 Then ContinueLoop
 		If Agent_GetAgentInfo($l_p_Agent, "HP") <= 0 Then ContinueLoop
 		If Agent_GetAgentInfo($l_p_Agent, "IsDead") Then ContinueLoop
-
-		If Agent_GetDistance($l_p_Agent, -2) > $l_f_Aggro Then ContinueLoop
-		Local $l_f_Ex = Agent_GetAgentInfo($l_p_Agent, "X")
-		Local $l_f_Ey = Agent_GetAgentInfo($l_p_Agent, "Y")
-		If MapTravel_PointToSegmentDist($l_f_Ex, $l_f_Ey, $g_f_MapTravelSegFromX, $g_f_MapTravelSegFromY, _
-			$g_f_MapTravelSegToX, $g_f_MapTravelSegToY) > $l_f_Corridor Then ContinueLoop
-		Return True
+		If Agent_GetDistance($l_p_Agent, -2) <= $l_f_Aggro Then Return True
 	Next
 	Return False
 EndFunc
 
-Func MapTravel_PortalFightIfNeeded()
+; Non-blocking combat tick for portal nudge loops (Pathfinder handles fight-while-walking).
+Func MapTravel_PortalCombatTick()
 	If Map_GetInstanceInfo("Type") <> $GC_I_MAP_TYPE_EXPLORABLE Then Return
+	If Not MapTravel_HasNearbyPortalEnemy() Then Return
 
 	Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
 	Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
-	Local $l_b_Fight = False
-	If IsFunc(Execute("CombatLogger_IsCombatActive")) And CombatLogger_IsCombatActive() Then
-		$l_b_Fight = True
-	ElseIf MapTravel_HasEnemyOnPortalSegment() Then
-		$l_b_Fight = True
-	EndIf
-	If Not $l_b_Fight Then Return
-
-	UAI_Fight($l_f_Mx, $l_f_My, MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher())
+	Local $l_f_Aggro = MapTravel_GetPortalAggro()
+	UAI_UseSkills($l_f_Mx, $l_f_My, $l_f_Aggro, MapTravel_GetPortalFightOut())
 EndFunc
 
-; Pathfinder_CallFunc during portal walks: corridor combat + loot (not full sweep aggro).
+; Pathfinder_CallFunc during portal walks: loot + combat logging (Pathfinder UAI_Fight handles combat).
 Func MapTravel_Tick()
 	MapTravel_WaitIfPaused()
 	If $g_b_StopRequested Then Return
 	SmartCast_EnsureReady(False)
-	MapTravel_PortalFightIfNeeded()
 	LootPickup_Tick()
 	If IsFunc(Execute("CombatLogger_Tick")) Then CombatLogger_Tick()
 EndFunc
 
 Func MapTravel_GetPortalFightOut()
-	If IsDeclared("g_f_FightRangeOut") And Number($g_f_FightRangeOut) > 0 Then Return $g_f_FightRangeOut
-	Return 3500
+	Return MapTravel_GetPortalAggro()
 EndFunc
 
 Func MapTravel_GetPortalFinisher()
@@ -177,7 +160,7 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_TimeoutMs = 20
 
 		SmartCast_EnsureReady(False)
 		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
-			MapTravel_PortalFightIfNeeded()
+			MapTravel_PortalCombatTick()
 			If TimerDiff($l_h_Loot) >= 1000 Then
 				LootPickup_Sweep()
 				$l_h_Loot = TimerInit()
@@ -203,7 +186,7 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_TimeoutMs = 20
 	Return False
 EndFunc
 
-; Pathfinder to one portal-route waypoint (SmartCast + corridor combat; no portal nudge).
+; Pathfinder to one portal-route waypoint (SmartCast + nearby combat while walking; no portal nudge).
 Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX = -1, $a_f_SegFromY = -1)
 	If $g_b_StopRequested Then Return False
 	Local $l_i_Before = Map_GetMapID()
@@ -239,7 +222,7 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX 
 
 		SmartCast_EnsureReady(False)
 		MapTravel_ConfigurePathfinderForPortal()
-		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", $GC_F_MAPTRAVEL_PATHFINDER_SUPPRESS_AGGRO, _
+		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
 			MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
 		LootPickup_Sweep()
 
