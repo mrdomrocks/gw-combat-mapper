@@ -11,6 +11,15 @@ Global $g_b_HardMode = True
 Global $g_s_ActiveTitle = ""
 Global $g_i_GoOutLastMapHandled = 0
 Global $g_i_MapTravelAggro = 0
+Global $g_f_MapTravelPortalCorridor = 500
+Global $g_f_MapTravelSegFromX = 0
+Global $g_f_MapTravelSegFromY = 0
+Global $g_f_MapTravelSegToX = 0
+Global $g_f_MapTravelSegToY = 0
+Global $g_b_MapTravelSegActive = False
+Global Const $GC_F_MAPTRAVEL_PORTAL_AGGRO_DEFAULT = 800
+Global Const $GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT = 500
+Global Const $GC_F_MAPTRAVEL_PATHFINDER_SUPPRESS_AGGRO = 1 ; Pathfinder_MoveTo uses CallFunc for corridor combat
 ; True: leave via recorded caravan portal routes (vanquished / outpost / transit-only).
 ; False: leave from the current farm position via dest-aware Pathfinder (just swept).
 Global $g_b_CaravanPreferPortalRoute = True
@@ -19,12 +28,96 @@ Func MapTravel_LoadConfig($a_s_ConfigPath = "")
 	If $a_s_ConfigPath = "" Then $a_s_ConfigPath = @ScriptDir & "\config.ini"
 	$g_i_MapTravelAggro = Number(IniRead($a_s_ConfigPath, "Travel", "PortalAggro", "0"))
 	If $g_i_MapTravelAggro < 0 Then $g_i_MapTravelAggro = 0
+	$g_f_MapTravelPortalCorridor = Number(IniRead($a_s_ConfigPath, "Travel", "PortalPathCorridor", _
+		String($GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT)))
+	If $g_f_MapTravelPortalCorridor <= 0 Then $g_f_MapTravelPortalCorridor = $GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT
 EndFunc
 
 Func MapTravel_GetPortalAggro()
 	If $g_i_MapTravelAggro > 0 Then Return $g_i_MapTravelAggro
-	If IsDeclared("g_f_AggroRange") And Number($g_f_AggroRange) > 0 Then Return $g_f_AggroRange
-	Return 1320
+	Return $GC_F_MAPTRAVEL_PORTAL_AGGRO_DEFAULT
+EndFunc
+
+Func MapTravel_SetPortalSegment($a_f_FromX, $a_f_FromY, $a_f_ToX, $a_f_ToY)
+	$g_f_MapTravelSegFromX = $a_f_FromX
+	$g_f_MapTravelSegFromY = $a_f_FromY
+	$g_f_MapTravelSegToX = $a_f_ToX
+	$g_f_MapTravelSegToY = $a_f_ToY
+	$g_b_MapTravelSegActive = True
+EndFunc
+
+Func MapTravel_ClearPortalSegment()
+	$g_b_MapTravelSegActive = False
+EndFunc
+
+; Perpendicular distance from (px,py) to the line segment (x1,y1)-(x2,y2).
+Func MapTravel_PointToSegmentDist($a_f_Px, $a_f_Py, $a_f_X1, $a_f_Y1, $a_f_X2, $a_f_Y2)
+	Local $l_f_Dx = $a_f_X2 - $a_f_X1
+	Local $l_f_Dy = $a_f_Y2 - $a_f_Y1
+	Local $l_f_LenSq = $l_f_Dx * $l_f_Dx + $l_f_Dy * $l_f_Dy
+	If $l_f_LenSq < 1 Then Return Sqrt(($a_f_Px - $a_f_X1) ^ 2 + ($a_f_Py - $a_f_Y1) ^ 2)
+
+	Local $l_f_T = (($a_f_Px - $a_f_X1) * $l_f_Dx + ($a_f_Py - $a_f_Y1) * $l_f_Dy) / $l_f_LenSq
+	If $l_f_T < 0 Then $l_f_T = 0
+	If $l_f_T > 1 Then $l_f_T = 1
+	Local $l_f_Cx = $a_f_X1 + $l_f_T * $l_f_Dx
+	Local $l_f_Cy = $a_f_Y1 + $l_f_T * $l_f_Dy
+	Return Sqrt(($a_f_Px - $l_f_Cx) ^ 2 + ($a_f_Py - $l_f_Cy) ^ 2)
+EndFunc
+
+; True when a living enemy is on the current portal segment and within PortalAggro of the player.
+Func MapTravel_HasEnemyOnPortalSegment()
+	If Not $g_b_MapTravelSegActive Then Return False
+
+	Local $l_f_Aggro = MapTravel_GetPortalAggro()
+	Local $l_f_Corridor = $g_f_MapTravelPortalCorridor
+	Local $l_a_Agents = Agent_GetAgentArray(0xDB)
+	If Not IsArray($l_a_Agents) Or $l_a_Agents[0] < 1 Then Return False
+
+	Local $i
+	For $i = 1 To $l_a_Agents[0]
+		Local $l_p_Agent = $l_a_Agents[$i]
+		If $l_p_Agent = 0 Then ContinueLoop
+		Local $l_i_ID = Agent_GetAgentInfo($l_p_Agent, "ID")
+		If $l_i_ID = 0 Or $l_i_ID = Agent_GetMyID() Then ContinueLoop
+		If Agent_GetAgentInfo($l_p_Agent, "Allegiance") <> 3 Then ContinueLoop
+		If Agent_GetAgentInfo($l_p_Agent, "HP") <= 0 Then ContinueLoop
+		If Agent_GetAgentInfo($l_p_Agent, "IsDead") Then ContinueLoop
+
+		If Agent_GetDistance($l_p_Agent, -2) > $l_f_Aggro Then ContinueLoop
+		Local $l_f_Ex = Agent_GetAgentInfo($l_p_Agent, "X")
+		Local $l_f_Ey = Agent_GetAgentInfo($l_p_Agent, "Y")
+		If MapTravel_PointToSegmentDist($l_f_Ex, $l_f_Ey, $g_f_MapTravelSegFromX, $g_f_MapTravelSegFromY, _
+			$g_f_MapTravelSegToX, $g_f_MapTravelSegToY) > $l_f_Corridor Then ContinueLoop
+		Return True
+	Next
+	Return False
+EndFunc
+
+Func MapTravel_PortalFightIfNeeded()
+	If Map_GetInstanceInfo("Type") <> $GC_I_MAP_TYPE_EXPLORABLE Then Return
+
+	Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
+	Local $l_b_Fight = False
+	If IsFunc(Execute("CombatLogger_IsCombatActive")) And CombatLogger_IsCombatActive() Then
+		$l_b_Fight = True
+	ElseIf MapTravel_HasEnemyOnPortalSegment() Then
+		$l_b_Fight = True
+	EndIf
+	If Not $l_b_Fight Then Return
+
+	UAI_Fight($l_f_Mx, $l_f_My, MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher())
+EndFunc
+
+; Pathfinder_CallFunc during portal walks: corridor combat + loot (not full sweep aggro).
+Func MapTravel_Tick()
+	MapTravel_WaitIfPaused()
+	If $g_b_StopRequested Then Return
+	SmartCast_EnsureReady(False)
+	MapTravel_PortalFightIfNeeded()
+	LootPickup_Tick()
+	If IsFunc(Execute("CombatLogger_Tick")) Then CombatLogger_Tick()
 EndFunc
 
 Func MapTravel_GetPortalFightOut()
@@ -38,8 +131,7 @@ Func MapTravel_GetPortalFinisher()
 EndFunc
 
 Func MapTravel_GetPortalCallFunc()
-	If IsFunc(Execute("CombatMapper_Tick")) Then Return "CombatMapper_Tick"
-	Return ""
+	Return "MapTravel_Tick"
 EndFunc
 
 Func MapTravel_ConfigurePathfinderForPortal()
@@ -85,9 +177,7 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_TimeoutMs = 20
 
 		SmartCast_EnsureReady(False)
 		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
-			Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
-			Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
-			UAI_Fight($l_f_Mx, $l_f_My, MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher())
+			MapTravel_PortalFightIfNeeded()
 			If TimerDiff($l_h_Loot) >= 1000 Then
 				LootPickup_Sweep()
 				$l_h_Loot = TimerInit()
@@ -113,8 +203,8 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_TimeoutMs = 20
 	Return False
 EndFunc
 
-; Pathfinder to one portal-route waypoint (SmartCast + combat; no portal nudge).
-Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "")
+; Pathfinder to one portal-route waypoint (SmartCast + corridor combat; no portal nudge).
+Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX = -1, $a_f_SegFromY = -1)
 	If $g_b_StopRequested Then Return False
 	Local $l_i_Before = Map_GetMapID()
 	Local $l_s_Lbl = $a_s_Label
@@ -123,31 +213,47 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "")
 	Local Const $GC_I_PORTAL_WP_RETRIES = 3
 	Local $l_i_Retry = 0
 
+	Local $l_f_FromX = $a_f_SegFromX
+	Local $l_f_FromY = $a_f_SegFromY
+	If $l_f_FromX < 0 Or $l_f_FromY < 0 Then
+		$l_f_FromX = Agent_GetAgentInfo(-2, "X")
+		$l_f_FromY = Agent_GetAgentInfo(-2, "Y")
+	EndIf
+	MapTravel_SetPortalSegment($l_f_FromX, $l_f_FromY, $a_f_X, $a_f_Y)
+
 	While $l_i_Retry < $GC_I_PORTAL_WP_RETRIES And Not $g_b_StopRequested
 		MapTravel_WaitIfPaused()
-		If $g_b_StopRequested Then Return False
+		If $g_b_StopRequested Then
+			MapTravel_ClearPortalSegment()
+			Return False
+		EndIf
 		If Map_GetMapID() <> $l_i_Before Or Map_GetInstanceInfo("IsLoading") Then
+			MapTravel_ClearPortalSegment()
 			MapTravel_OnPortalCrossed()
 			Return True
 		EndIf
 
 		Local $l_f_DistBefore = Agent_GetDistanceToXY($a_f_X, $a_f_Y)
 		Out($l_s_Lbl & " -> (" & Round($a_f_X) & "," & Round($a_f_Y) & ") dist=" & Round($l_f_DistBefore) & _
-			" | aggro=" & MapTravel_GetPortalAggro())
+			" | path aggro=" & MapTravel_GetPortalAggro() & " corridor=" & Round($g_f_MapTravelPortalCorridor))
 
 		SmartCast_EnsureReady(False)
 		MapTravel_ConfigurePathfinderForPortal()
-		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
+		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", $GC_F_MAPTRAVEL_PATHFINDER_SUPPRESS_AGGRO, _
 			MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
 		LootPickup_Sweep()
 
 		If Map_GetMapID() <> $l_i_Before Or Map_GetInstanceInfo("IsLoading") Then
+			MapTravel_ClearPortalSegment()
 			MapTravel_OnPortalCrossed()
 			Return True
 		EndIf
 
 		Local $l_f_DistAfter = Agent_GetDistanceToXY($a_f_X, $a_f_Y)
-		If $l_b_Ok And $l_f_DistAfter <= $GC_F_PORTAL_WP_REACHED Then Return False
+		If $l_b_Ok And $l_f_DistAfter <= $GC_F_PORTAL_WP_REACHED Then
+			MapTravel_ClearPortalSegment()
+			Return False
+		EndIf
 
 		$l_i_Retry += 1
 		If $l_i_Retry < $GC_I_PORTAL_WP_RETRIES Then
@@ -155,19 +261,32 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "")
 		EndIf
 	WEnd
 
+	MapTravel_ClearPortalSegment()
 	Return False
 EndFunc
 
 ; Pathfinder to exit portal, then walk into it until the map changes.
-Func MapTravel_WalkToPortal($a_f_X, $a_f_Y, $a_s_Label = "")
+Func MapTravel_WalkToPortal($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX = -1, $a_f_SegFromY = -1)
 	If $g_b_StopRequested Then Return False
 	Local $l_i_Before = Map_GetMapID()
 	Local $l_s_Lbl = $a_s_Label
 	If $l_s_Lbl = "" Then $l_s_Lbl = "Portal"
-	Out($l_s_Lbl & " portal -> (" & Round($a_f_X) & "," & Round($a_f_Y) & ") | aggro=" & MapTravel_GetPortalAggro())
+	Out($l_s_Lbl & " portal -> (" & Round($a_f_X) & "," & Round($a_f_Y) & ") | path aggro=" & MapTravel_GetPortalAggro() & _
+		" corridor=" & Round($g_f_MapTravelPortalCorridor))
 
-	If MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $l_s_Lbl) Then Return True
-	If MapTravel_NudgePortal($a_f_X, $a_f_Y, $l_i_Before) Then Return True
+	If MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $l_s_Lbl, $a_f_SegFromX, $a_f_SegFromY) Then Return True
+	If Not $g_b_MapTravelSegActive Then
+		Local $l_f_FromX = $a_f_SegFromX
+		Local $l_f_FromY = $a_f_SegFromY
+		If $l_f_FromX < 0 Or $l_f_FromY < 0 Then
+			$l_f_FromX = Agent_GetAgentInfo(-2, "X")
+			$l_f_FromY = Agent_GetAgentInfo(-2, "Y")
+		EndIf
+		MapTravel_SetPortalSegment($l_f_FromX, $l_f_FromY, $a_f_X, $a_f_Y)
+	EndIf
+	Local $l_b_Crossed = MapTravel_NudgePortal($a_f_X, $a_f_Y, $l_i_Before)
+	MapTravel_ClearPortalSegment()
+	If $l_b_Crossed Then Return True
 	Return Map_GetMapID() <> $l_i_Before
 EndFunc
 
@@ -239,12 +358,24 @@ Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNea
 	For $i = $l_i_Start To $l_i_Last - 1
 		MapTravel_WaitIfPaused()
 		If $g_b_StopRequested Then Return False
+		Local $l_f_FromX = Agent_GetAgentInfo(-2, "X")
+		Local $l_f_FromY = Agent_GetAgentInfo(-2, "Y")
+		If $i > 0 Then
+			$l_f_FromX = $a_af2_Points[$i - 1][0]
+			$l_f_FromY = $a_af2_Points[$i - 1][1]
+		EndIf
 		If MapTravel_MoveToPortalPoint($a_af2_Points[$i][0], $a_af2_Points[$i][1], _
-			$l_s_Lbl & "WP " & ($i + 1) & "/" & ($l_i_Last + 1)) Then Return True
+			$l_s_Lbl & "WP " & ($i + 1) & "/" & ($l_i_Last + 1), $l_f_FromX, $l_f_FromY) Then Return True
 	Next
 
+	Local $l_f_PortalFromX = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_PortalFromY = Agent_GetAgentInfo(-2, "Y")
+	If $l_i_Last > 0 Then
+		$l_f_PortalFromX = $a_af2_Points[$l_i_Last - 1][0]
+		$l_f_PortalFromY = $a_af2_Points[$l_i_Last - 1][1]
+	EndIf
 	If MapTravel_WalkToPortal($a_af2_Points[$l_i_Last][0], $a_af2_Points[$l_i_Last][1], _
-		$l_s_Lbl & "WP " & ($l_i_Last + 1) & "/" & ($l_i_Last + 1)) Then Return True
+		$l_s_Lbl & "WP " & ($l_i_Last + 1) & "/" & ($l_i_Last + 1), $l_f_PortalFromX, $l_f_PortalFromY) Then Return True
 	Return Map_GetMapID() <> $l_i_Before
 EndFunc
 

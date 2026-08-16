@@ -1,6 +1,6 @@
 #include-once
 
-; Ground loot: gold coins, gold-rarity items, Rations (38613), Compass (38614).
+; Ground loot: gold coins, gold-rarity items, Feathers (933), Rations (38613), Compass (38614).
 ; Runs from Pathfinder CallFunc after combat, and after waypoints / portal fights.
 
 Global Const $GC_I_MODELID_RATIONS = 38613
@@ -85,6 +85,7 @@ Func LootPickup_ShouldTake($a_p_Item)
 	If $l_i_ModelID = $GC_I_MODELID_GOLD_COIN Then
 		Return Item_GetInventoryInfo("GoldCharacter") < $GC_I_LOOT_GOLD_CAP
 	EndIf
+	If $l_i_ModelID = $GC_I_MODELID_FEATHERS Then Return True
 	If $l_i_ModelID = $GC_I_MODELID_RATIONS Then Return True
 	If $l_i_ModelID = $GC_I_MODELID_COMPASS Then Return True
 	If $l_i_Rarity = $GC_I_RARITY_GOLD Then Return True
