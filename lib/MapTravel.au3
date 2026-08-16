@@ -253,10 +253,8 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX 
 			" | path aggro=" & MapTravel_GetPortalAggro() & " corridor=" & Round($g_f_MapTravelPortalCorridor))
 
 		SmartCast_EnsureReady(False)
-		MapTravel_ConfigurePathfinderForPortal()
 		Local $l_b_Ok = PathRoute_MoveTo($a_f_X, $a_f_Y, $GC_S_PATHROUTE_PROFILE_PORTAL, MapTravel_GetPortalAggro(), _
 			MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
-		LootPickup_Sweep()
 
 		If Map_GetMapID() <> $l_i_Before Or Map_GetInstanceInfo("IsLoading") Then
 			MapTravel_ClearPortalSegment()
@@ -382,9 +380,15 @@ Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNea
 	Out($l_s_Lbl & " transit path " & ($l_i_Last + 1 - $l_i_Start) & "/" & ($l_i_Last + 1) & _
 		" waypoint(s)" & $l_s_StartNote)
 
+	PathRoute_LoadConfig()
+	PathRoute_BeginSession($GC_S_PATHROUTE_PROFILE_PORTAL)
+
 	For $i = $l_i_Start To $l_i_Last - 1
 		MapTravel_WaitIfPaused()
-		If $g_b_StopRequested Then Return False
+		If $g_b_StopRequested Then
+			PathRoute_EndSession()
+			Return False
+		EndIf
 		Local $l_f_FromX = Agent_GetAgentInfo(-2, "X")
 		Local $l_f_FromY = Agent_GetAgentInfo(-2, "Y")
 		If $i > 0 Then
@@ -392,7 +396,10 @@ Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNea
 			$l_f_FromY = $a_af2_Points[$i - 1][1]
 		EndIf
 		If MapTravel_MoveToPortalPoint($a_af2_Points[$i][0], $a_af2_Points[$i][1], _
-			$l_s_Lbl & "WP " & ($i + 1) & "/" & ($l_i_Last + 1), $l_f_FromX, $l_f_FromY) Then Return True
+			$l_s_Lbl & "WP " & ($i + 1) & "/" & ($l_i_Last + 1), $l_f_FromX, $l_f_FromY) Then
+			PathRoute_EndSession()
+			Return True
+		EndIf
 	Next
 
 	Local $l_f_PortalFromX = Agent_GetAgentInfo(-2, "X")
@@ -401,8 +408,10 @@ Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNea
 		$l_f_PortalFromX = $a_af2_Points[$l_i_Last - 1][0]
 		$l_f_PortalFromY = $a_af2_Points[$l_i_Last - 1][1]
 	EndIf
-	If MapTravel_WalkToPortal($a_af2_Points[$l_i_Last][0], $a_af2_Points[$l_i_Last][1], _
-		$l_s_Lbl & "WP " & ($l_i_Last + 1) & "/" & ($l_i_Last + 1), $l_f_PortalFromX, $l_f_PortalFromY) Then Return True
+	Local $l_b_Crossed = MapTravel_WalkToPortal($a_af2_Points[$l_i_Last][0], $a_af2_Points[$l_i_Last][1], _
+		$l_s_Lbl & "WP " & ($l_i_Last + 1) & "/" & ($l_i_Last + 1), $l_f_PortalFromX, $l_f_PortalFromY)
+	PathRoute_EndSession()
+	If $l_b_Crossed Then Return True
 	Return Map_GetMapID() <> $l_i_Before
 EndFunc
 

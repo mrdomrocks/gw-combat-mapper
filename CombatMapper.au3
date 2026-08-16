@@ -640,6 +640,8 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	Local $l_b_MoveInterrupted = False
 
 	Coverage_ConfigurePathfinder(False)
+	PathRoute_LoadConfig()
+	PathRoute_BeginSession($GC_S_PATHROUTE_PROFILE_COVERAGE, False)
 
 	While $g_b_BotRunning And Not $g_b_StopRequested
 		Local $l_i_WaypointRetries = 0
@@ -663,6 +665,12 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 			If Not Coverage_GetCurrentPoint($l_f_X, $l_f_Y) Then ExitLoop
 
 			Local $l_f_DistBefore = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
+			If $l_f_DistBefore <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
+				Out("Skip near waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistBefore))
+				Coverage_Advance()
+				Coverage_MarkWaypointReached()
+				ContinueLoop
+			EndIf
 
 			UpdateStatusLabel("moving " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & _
 				Coverage_PassLogSuffix() & " -> (" & Round($l_f_X) & "," & Round($l_f_Y) & _
@@ -674,7 +682,6 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 			Local $hMove = TimerInit()
 			Local $l_b_Ok = PathRoute_MoveTo($l_f_X, $l_f_Y, $GC_S_PATHROUTE_PROFILE_COVERAGE, $g_f_AggroRange, _
 				$g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
-			LootPickup_Sweep()
 
 			Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
 
@@ -736,6 +743,8 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		UpdateStatusLabel("paused " & $g_i_CoverageIndex & "/" & $g_i_CoverageCount & _
 			" | events=" & CombatLogger_GetCount())
 	EndIf
+
+	PathRoute_EndSession()
 
 	$g_b_SweepActive = False
 	If Not MapCatalog_IsSequenceSelection($g_s_SelectedTarget) Then

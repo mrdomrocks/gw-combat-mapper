@@ -13,18 +13,26 @@ Global $g_b_PathRoutePortalJoinRecorded = True
 Global $g_i_PathRouteMaxValidateSegments = 0
 
 ; Movement tuning — tighter simplify + no dynamic obstacles reduces wall-hugging.
-Global $g_i_PathRouteSimplifyCoverage = 650
-Global $g_i_PathRouteSimplifyPortal = 750
+Global $g_i_PathRouteSimplifyCoverage = 500
+Global $g_i_PathRouteSimplifyPortal = 600
 Global $g_i_PathRoutePathUpdateInterval = 1000
 Global $g_i_PathRouteObstacleUpdateInterval = 2500
 Global $g_i_PathRouteObstacleMode = 0
-Global $g_f_PathRouteClearanceWeight = 0.5
+Global $g_f_PathRouteClearanceWeight = 1.0
 Global $g_i_PathRouteWaypointReachedCoverage = 200
 Global $g_i_PathRouteWaypointReachedPortal = 200
 Global $g_b_PathRouteExpandMovement = True
-Global $g_f_PathRouteExpandSegmentDist = 2500
-Global $g_i_PathRouteExpandSimplify = 600
+Global $g_f_PathRouteExpandSegmentDist = 1500
+Global $g_i_PathRouteExpandSimplify = 450
+Global $g_f_PathRouteExpandHopMinDist = 350
+Global $g_i_PathRouteExpandHopStride = 2
 Global $g_i_PathRouteUnstuckDirection = 0
+Global $g_b_PathRouteSessionActive = False
+Global $g_s_PathRouteSessionProfile = $GC_S_PATHROUTE_PROFILE_COVERAGE
+Global $g_b_PathRouteFastTransit = True
+Global Const $GC_I_PATHROUTE_MAX_BLOCK_COUNT = 20
+Global Const $GC_I_PATHROUTE_STUCK_DIST = 100
+Global Const $GC_I_PATHROUTE_STUCK_MS = 500
 
 Global Const $GC_S_PATHROUTE_PROFILE_COVERAGE = "coverage"
 Global Const $GC_S_PATHROUTE_PROFILE_PORTAL = "portal"
@@ -36,23 +44,28 @@ Func PathRoute_LoadConfig($a_s_ConfigPath = "")
 	$g_b_PathRoutePortalJoinRecorded = Number(IniRead($a_s_ConfigPath, "PathRoute", "PortalJoinRecordedRoute", "1")) <> 0
 	$g_i_PathRouteMaxValidateSegments = Number(IniRead($a_s_ConfigPath, "PathRoute", "MaxValidateSegments", "0"))
 	If $g_i_PathRouteMaxValidateSegments < 0 Then $g_i_PathRouteMaxValidateSegments = 0
-	$g_i_PathRouteSimplifyCoverage = Number(IniRead($a_s_ConfigPath, "PathRoute", "SimplifyRangeCoverage", "650"))
-	$g_i_PathRouteSimplifyPortal = Number(IniRead($a_s_ConfigPath, "PathRoute", "SimplifyRangePortal", "750"))
+	$g_i_PathRouteSimplifyCoverage = Number(IniRead($a_s_ConfigPath, "PathRoute", "SimplifyRangeCoverage", "500"))
+	$g_i_PathRouteSimplifyPortal = Number(IniRead($a_s_ConfigPath, "PathRoute", "SimplifyRangePortal", "600"))
 	$g_i_PathRoutePathUpdateInterval = Number(IniRead($a_s_ConfigPath, "PathRoute", "PathUpdateInterval", "1000"))
 	$g_i_PathRouteObstacleUpdateInterval = Number(IniRead($a_s_ConfigPath, "PathRoute", "ObstacleUpdateInterval", "2500"))
 	$g_i_PathRouteObstacleMode = Number(IniRead($a_s_ConfigPath, "PathRoute", "ObstacleMode", "0"))
-	$g_f_PathRouteClearanceWeight = Number(IniRead($a_s_ConfigPath, "PathRoute", "ClearanceWeight", "0.5"))
+	$g_f_PathRouteClearanceWeight = Number(IniRead($a_s_ConfigPath, "PathRoute", "ClearanceWeight", "1.0"))
 	$g_i_PathRouteWaypointReachedCoverage = Number(IniRead($a_s_ConfigPath, "PathRoute", "WaypointReachedCoverage", "200"))
 	$g_i_PathRouteWaypointReachedPortal = Number(IniRead($a_s_ConfigPath, "PathRoute", "WaypointReachedPortal", "200"))
 	$g_b_PathRouteExpandMovement = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandMovement", "1")) <> 0
-	$g_f_PathRouteExpandSegmentDist = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandSegmentDist", "2500"))
-	$g_i_PathRouteExpandSimplify = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandSimplifyRange", "600"))
-	If $g_i_PathRouteSimplifyCoverage < 200 Then $g_i_PathRouteSimplifyCoverage = 650
-	If $g_i_PathRouteSimplifyPortal < 200 Then $g_i_PathRouteSimplifyPortal = 750
+	$g_f_PathRouteExpandSegmentDist = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandSegmentDist", "1500"))
+	$g_i_PathRouteExpandSimplify = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandSimplifyRange", "450"))
+	$g_f_PathRouteExpandHopMinDist = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandHopMinDist", "350"))
+	$g_i_PathRouteExpandHopStride = Number(IniRead($a_s_ConfigPath, "PathRoute", "ExpandHopStride", "2"))
+	$g_b_PathRouteFastTransit = Number(IniRead($a_s_ConfigPath, "PathRoute", "FastTransit", "1")) <> 0
+	If $g_i_PathRouteSimplifyCoverage < 200 Then $g_i_PathRouteSimplifyCoverage = 500
+	If $g_i_PathRouteSimplifyPortal < 200 Then $g_i_PathRouteSimplifyPortal = 600
 	If $g_i_PathRoutePathUpdateInterval < 500 Then $g_i_PathRoutePathUpdateInterval = 1000
 	If $g_i_PathRouteObstacleUpdateInterval < 500 Then $g_i_PathRouteObstacleUpdateInterval = 2500
-	If $g_f_PathRouteExpandSegmentDist < 500 Then $g_f_PathRouteExpandSegmentDist = 2500
-	If $g_i_PathRouteExpandSimplify < 200 Then $g_i_PathRouteExpandSimplify = 600
+	If $g_f_PathRouteExpandSegmentDist < 300 Then $g_f_PathRouteExpandSegmentDist = 1500
+	If $g_i_PathRouteExpandSimplify < 200 Then $g_i_PathRouteExpandSimplify = 450
+	If $g_f_PathRouteExpandHopMinDist < 100 Then $g_f_PathRouteExpandHopMinDist = 350
+	If $g_i_PathRouteExpandHopStride < 1 Then $g_i_PathRouteExpandHopStride = 1
 EndFunc
 
 Func PathRoute_GetValidateSimplifyRange()
@@ -103,7 +116,153 @@ Func PathRoute_UnstuckNudge($a_f_Distance = 500)
 	Local $l_f_NudgeY = $l_f_Y + Sin($l_f_Angle) * $a_f_Distance
 	Out("PathRoute: unstuck nudge -> (" & Round($l_f_NudgeX) & "," & Round($l_f_NudgeY) & ")")
 	Map_MoveLayer($l_f_NudgeX, $l_f_NudgeY, $l_i_Layer)
-	Sleep(750)
+	Sleep(200)
+EndFunc
+
+Func PathRoute_BeginSession($a_s_Profile = $GC_S_PATHROUTE_PROFILE_COVERAGE, $a_b_Verbose = False)
+	If $g_b_PathRouteSessionActive And $g_s_PathRouteSessionProfile = $a_s_Profile Then
+		Return PathRoute_ConfigurePathfinder($a_s_Profile, $a_b_Verbose)
+	EndIf
+	If $g_b_PathRouteSessionActive Then PathRoute_EndSession()
+	If Not PathRoute_ConfigurePathfinder($a_s_Profile, $a_b_Verbose) Then Return False
+	$g_b_PathRouteSessionActive = True
+	$g_s_PathRouteSessionProfile = $a_s_Profile
+	Return True
+EndFunc
+
+Func PathRoute_EndSession()
+	If Not $g_b_PathRouteSessionActive Then Return
+	Pathfinder_Shutdown()
+	$g_b_PathRouteSessionActive = False
+EndFunc
+
+Func PathRoute_GetReachedDistance($a_s_Profile)
+	If $a_s_Profile = $GC_S_PATHROUTE_PROFILE_PORTAL Then Return $g_i_PathRouteWaypointReachedPortal
+	Return $g_i_PathRouteWaypointReachedCoverage
+EndFunc
+
+Func PathRoute_GetMoveSimplifyRange($a_s_Profile)
+	If $a_s_Profile = $GC_S_PATHROUTE_PROFILE_PORTAL Then Return $g_i_PathRouteSimplifyPortal
+	Return $g_i_PathRouteSimplifyCoverage
+EndFunc
+
+; Advance path index while the player is already near upcoming mesh points.
+Func PathRoute_SelectPathTarget(ByRef $a_a_Path, ByRef $a_i_Index, $a_f_Cx, $a_f_Cy, $a_f_DestX, $a_f_DestY, _
+	ByRef $a_f_MoveX, ByRef $a_f_MoveY, ByRef $a_i_Layer, $a_f_ReachDist)
+	If Not IsArray($a_a_Path) Then
+		$a_f_MoveX = $a_f_DestX
+		$a_f_MoveY = $a_f_DestY
+		$a_i_Layer = Number(Agent_GetAgentInfo(-2, "Plane"))
+		Return
+	EndIf
+
+	While $a_i_Index < UBound($a_a_Path) - 1
+		If PathRoute_Distance($a_f_Cx, $a_f_Cy, $a_a_Path[$a_i_Index][0], $a_a_Path[$a_i_Index][1]) >= $a_f_ReachDist Then ExitLoop
+		$a_i_Index += 1
+	WEnd
+
+	If $a_i_Index < UBound($a_a_Path) Then
+		$a_f_MoveX = $a_a_Path[$a_i_Index][0]
+		$a_f_MoveY = $a_a_Path[$a_i_Index][1]
+		$a_i_Layer = $a_a_Path[$a_i_Index][2]
+	Else
+		$a_f_MoveX = $a_f_DestX
+		$a_f_MoveY = $a_f_DestY
+		$a_i_Layer = Number(Agent_GetAgentInfo(-2, "Plane"))
+	EndIf
+EndFunc
+
+Func PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_StartX = -1, $a_f_StartY = -1)
+	Local $l_i_MapID = Map_GetMapID()
+	If Not Pathfinder_IsMapAvailable($l_i_MapID) Then Return 0
+
+	Local $l_f_StartX = $a_f_StartX
+	Local $l_f_StartY = $a_f_StartY
+	If $l_f_StartX < 0 Or $l_f_StartY < 0 Then
+		$l_f_StartX = Agent_GetAgentInfo(-2, "X")
+		$l_f_StartY = Agent_GetAgentInfo(-2, "Y")
+	EndIf
+
+	Local $l_a_Path = Pathfinder_FindPath($l_i_MapID, $l_f_StartX, $l_f_StartY, -1, $a_f_DestX, $a_f_DestY, -1, 0, _
+		PathRoute_GetMoveSimplifyRange($a_s_Profile), $g_f_PathRouteClearanceWeight)
+	If IsArray($l_a_Path) And UBound($l_a_Path) >= 1 Then Return $l_a_Path
+	Return 0
+EndFunc
+
+; Session-based walker: keeps pathfinder loaded and follows mesh points without Shutdown per leg.
+Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc = "")
+	If Not $g_b_PathRouteSessionActive Then
+		If Not PathRoute_BeginSession($a_s_Profile) Then Return False
+	ElseIf $g_s_PathRouteSessionProfile <> $a_s_Profile Then
+		PathRoute_BeginSession($a_s_Profile)
+	EndIf
+
+	Local $l_i_StartMap = Map_GetMapID()
+	Local $l_i_TypeOld = Map_GetInstanceInfo("Type")
+	Local $l_f_Reach = PathRoute_GetReachedDistance($a_s_Profile)
+	Local $l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile)
+	If Not IsArray($l_a_Path) Then Return False
+
+	Local $l_i_PathIndex = 0
+	Local $l_h_Repath = TimerInit()
+	Local $l_h_Stuck = TimerInit()
+	Local $l_f_LastX = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_LastY = Agent_GetAgentInfo(-2, "Y")
+	Local $l_i_Blocked = 0
+	Local $l_f_MoveX = $a_f_DestX
+	Local $l_f_MoveY = $a_f_DestY
+	Local $l_i_Layer = Number(Agent_GetAgentInfo(-2, "Plane"))
+
+	PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_LastX, $l_f_LastY, $a_f_DestX, $a_f_DestY, _
+		$l_f_MoveX, $l_f_MoveY, $l_i_Layer, $l_f_Reach)
+	Map_MoveLayer($l_f_MoveX, $l_f_MoveY, $l_i_Layer)
+
+	While True
+		If $g_b_StopRequested Then Return False
+		If Map_GetMapID() <> $l_i_StartMap Or Map_GetInstanceInfo("Type") <> $l_i_TypeOld Then Return False
+		If Party_GetPartyContextInfo("IsDefeated") Then Return False
+
+		If $a_s_CallFunc <> "" Then Call($a_s_CallFunc)
+
+		Local $l_f_Cx = Agent_GetAgentInfo(-2, "X")
+		Local $l_f_Cy = Agent_GetAgentInfo(-2, "Y")
+		If PathRoute_Distance($l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY) <= $l_f_Reach Then ExitLoop
+
+		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
+			UAI_Fight($l_f_Cx, $l_f_Cy, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher)
+		EndIf
+
+		If TimerDiff($l_h_Repath) >= $g_i_PathRoutePathUpdateInterval Then
+			$l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
+			If IsArray($l_a_Path) Then $l_i_PathIndex = 0
+			$l_h_Repath = TimerInit()
+		EndIf
+
+		PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY, _
+			$l_f_MoveX, $l_f_MoveY, $l_i_Layer, $l_f_Reach)
+		Map_MoveLayer($l_f_MoveX, $l_f_MoveY, $l_i_Layer)
+
+		If PathRoute_Distance($l_f_Cx, $l_f_Cy, $l_f_LastX, $l_f_LastY) < $GC_I_PATHROUTE_STUCK_DIST Then
+			If TimerDiff($l_h_Stuck) >= $GC_I_PATHROUTE_STUCK_MS Then
+				$l_i_Blocked += 1
+				If $l_i_Blocked > $GC_I_PATHROUTE_MAX_BLOCK_COUNT Then ExitLoop
+				PathRoute_UnstuckNudge()
+				$l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile)
+				If IsArray($l_a_Path) Then $l_i_PathIndex = 0
+				$l_h_Stuck = TimerInit()
+			EndIf
+		Else
+			$l_i_Blocked = 0
+			$l_h_Stuck = TimerInit()
+		EndIf
+		$l_f_LastX = $l_f_Cx
+		$l_f_LastY = $l_f_Cy
+
+		Sleep(32)
+	WEnd
+
+	Agent_CancelAction()
+	Return PathRoute_Distance(Agent_GetAgentInfo(-2, "X"), Agent_GetAgentInfo(-2, "Y"), $a_f_DestX, $a_f_DestY) <= $l_f_Reach + 50
 EndFunc
 
 ; Build a mesh-following path from current position to destination (no dynamic obstacles).
@@ -124,8 +283,12 @@ Func PathRoute_BuildSegmentPath($a_f_DestX, $a_f_DestY, $a_f_StartX = -1, $a_f_S
 	Return 0
 EndFunc
 
-; Walk to destination via mesh path hops for long segments; otherwise single Pathfinder_MoveTo.
+; Walk to destination. Fast transit uses session walker (no Shutdown per leg).
 Func PathRoute_MoveTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc = "")
+	If $g_b_PathRouteFastTransit Or $g_b_PathRouteSessionActive Then
+		Return PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
+	EndIf
+
 	If Not PathRoute_ConfigurePathfinder($a_s_Profile, False) Then Return False
 
 	Local $l_v_Obstacles = PathRoute_GetObstacleArg()
@@ -138,18 +301,38 @@ Func PathRoute_MoveTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 		If IsArray($l_a_Path) Then
 			Local $l_i_Last = UBound($l_a_Path) - 1
 			If $l_i_Last >= 1 Then
-				For $i = 0 To $l_i_Last - 1
+				Local $l_i_Stride = $g_i_PathRouteExpandHopStride
+				If $l_i_Last > 16 Then $l_i_Stride = $g_i_PathRouteExpandHopStride + 1
+				Local $l_f_LastHopX = $l_f_Mx
+				Local $l_f_LastHopY = $l_f_My
+				Local $i = 0
+				While $i <= $l_i_Last - 1
 					If $g_b_StopRequested Then Return False
-					If IsDeclared("g_b_BotRunning") And Not $g_b_BotRunning Then Return False
-					Local $l_b_Ok = Pathfinder_MoveTo($l_a_Path[$i][0], $l_a_Path[$i][1], -1, $l_v_Obstacles, _
-						$a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
-					If Not $l_b_Ok Then Return False
-				Next
+					Local $l_f_HopX = $l_a_Path[$i][0]
+					Local $l_f_HopY = $l_a_Path[$i][1]
+					If PathRoute_Distance($l_f_LastHopX, $l_f_LastHopY, $l_f_HopX, $l_f_HopY) >= $g_f_PathRouteExpandHopMinDist Then
+						Local $l_b_Ok = Pathfinder_MoveTo($l_f_HopX, $l_f_HopY, -1, $l_v_Obstacles, _
+							$a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
+						If Not $l_b_Ok Then Return False
+						$l_f_LastHopX = $l_f_HopX
+						$l_f_LastHopY = $l_f_HopY
+					EndIf
+					$i += $l_i_Stride
+				WEnd
 			EndIf
 		EndIf
 	EndIf
 
-	Return Pathfinder_MoveTo($a_f_DestX, $a_f_DestY, -1, $l_v_Obstacles, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
+	Local $l_b_Final = Pathfinder_MoveTo($a_f_DestX, $a_f_DestY, -1, $l_v_Obstacles, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
+	If $l_b_Final Then Return True
+
+	Local $l_f_Remaining = Agent_GetDistanceToXY($a_f_DestX, $a_f_DestY)
+	If $l_f_Remaining > 400 Then
+		Out("PathRoute: final move failed dist=" & Round($l_f_Remaining) & " — unstuck retry")
+		PathRoute_UnstuckNudge()
+		Return Pathfinder_MoveTo($a_f_DestX, $a_f_DestY, -1, $l_v_Obstacles, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
+	EndIf
+	Return $l_b_Final
 EndFunc
 
 Func PathRoute_IsSegmentReachable($a_i_MapID, $a_f_X1, $a_f_Y1, $a_f_X2, $a_f_Y2)
