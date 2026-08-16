@@ -260,7 +260,8 @@ Func Coverage_BuildRoute($a_b_Verbose = True)
 		If $l_i_RouteCount > 0 Then
 			Coverage_ConfigurePathfinder($a_b_Verbose)
 			Local $l_i_OriginalCount = $l_i_RouteCount
-			If $g_b_PathRouteValidateVanquish Then
+			Local $l_b_CombinedFtcDg = ($g_s_CoverageMapTitle = "FlameTempleCorridor" Or $g_s_CoverageMapTitle = "DragonsGullet")
+			If $g_b_PathRouteValidateVanquish And Not $l_b_CombinedFtcDg Then
 				Local $l_i_MapID = Map_GetMapID()
 				Local $l_f_StartX = Agent_GetAgentInfo(-2, "X")
 				Local $l_f_StartY = Agent_GetAgentInfo(-2, "Y")

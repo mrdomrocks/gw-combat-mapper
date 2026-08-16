@@ -570,6 +570,7 @@ EndFunc
 
 Func _CaravanStageIndexByTitle($a_s_Title)
 	_Vanquisher_InitAscalonCaravanPlan()
+	If $a_s_Title = "DragonsGullet" Then $a_s_Title = "FlameTempleCorridor"
 	Local $i
 	For $i = 0 To $GC_I_ASCALON_CARAVAN_MAP_COUNT - 1
 		If $g_a_AscalonCaravanPlan[$i][8] = $a_s_Title Then Return $i
@@ -680,6 +681,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 			SmartCast_EnsureReady(False)
 			Local $hMove = TimerInit()
+			Local $l_i_MapBeforeMove = Map_GetMapID()
 			Local $l_b_Ok = PathRoute_MoveTo($l_f_X, $l_f_Y, $GC_S_PATHROUTE_PROFILE_COVERAGE, $g_f_AggroRange, _
 				$g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
 
@@ -688,11 +690,25 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 			If Not $l_b_Ok Then
 				If $g_b_StopRequested Then
 					Out("Pathfinder_MoveTo stopped by user.")
-				Else
-					Out("Pathfinder_MoveTo interrupted (map change / party defeated). Stopping map sweep.")
+					$l_b_MoveInterrupted = True
+					ExitLoop
 				EndIf
-				$l_b_MoveInterrupted = True
-				ExitLoop
+				If Party_GetPartyContextInfo("IsDefeated") Then
+					Out("Pathfinder_MoveTo interrupted (party defeated). Stopping map sweep.")
+					$l_b_MoveInterrupted = True
+					ExitLoop
+				EndIf
+				If Map_GetMapID() <> $l_i_MapBeforeMove Then
+					If MapRoute_IsFlameTempleGulletMap() Then
+						Out("FTC/DG map-id change — continuing combined route.")
+						$l_i_WaypointRetries = 0
+						ContinueLoop
+					EndIf
+					Out("Pathfinder_MoveTo interrupted (map change). Stopping map sweep.")
+					$l_b_MoveInterrupted = True
+					ExitLoop
+				EndIf
+				Out("Pathfinder_MoveTo failed dist=" & Round($l_f_DistAfter) & " — will retry or skip.")
 			EndIf
 
 			If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
@@ -700,6 +716,15 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 				Coverage_Advance()
 				Coverage_MarkWaypointReached()
 				$l_i_WaypointRetries = 0
+
+				Local $l_f_NextX = 0, $l_f_NextY = 0
+				If Coverage_GetCurrentPoint($l_f_NextX, $l_f_NextY) Then
+					Local $l_f_NextDist = Agent_GetDistanceToXY($l_f_NextX, $l_f_NextY)
+					If $l_f_NextDist <= $GC_F_PATHROUTE_CHAIN_WAYPOINT_DIST And _
+						$l_f_NextDist > $GC_F_COVERAGE_WAYPOINT_REACHED And Not CombatLogger_IsCombatActive() Then
+						ContinueLoop
+					EndIf
+				EndIf
 			ElseIf TimerDiff($hMove) > $GC_I_WAYPOINT_TIMEOUT_MS Then
 				Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — timeout (dist=" & Round($l_f_DistAfter) & ").")
 				Coverage_Advance()
