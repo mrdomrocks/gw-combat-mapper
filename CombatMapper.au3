@@ -672,8 +672,8 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 			SmartCast_EnsureReady(False)
 			Local $hMove = TimerInit()
-			Local $l_b_Ok = Pathfinder_MoveTo($l_f_X, $l_f_Y, -1, "UAI_GetObstacles", _
-				$g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
+			Local $l_b_Ok = PathRoute_MoveTo($l_f_X, $l_f_Y, $GC_S_PATHROUTE_PROFILE_COVERAGE, $g_f_AggroRange, _
+				$g_f_FightRangeOut, $g_i_FinisherMode, "CombatMapper_Tick")
 			LootPickup_Sweep()
 
 			Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
@@ -705,6 +705,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 				$l_i_WaypointRetries += 1
 				Out("Retry waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistAfter) & _
 					" (" & $l_i_WaypointRetries & "/" & $GC_I_WAYPOINT_MAX_RETRIES & ")")
+				PathRoute_UnstuckNudge()
 			EndIf
 		WEnd
 

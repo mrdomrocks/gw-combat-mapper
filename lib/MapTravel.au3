@@ -77,7 +77,7 @@ Func MapTravel_NudgeTowardSegmentMidpoint()
 	Out("PathRoute: nudging toward corridor midpoint (" & Round($l_f_Mx) & "," & Round($l_f_My) & ")")
 	SmartCast_EnsureReady(False)
 	MapTravel_ConfigurePathfinderForPortal()
-	Pathfinder_MoveTo($l_f_Mx, $l_f_My, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
+	PathRoute_MoveTo($l_f_Mx, $l_f_My, $GC_S_PATHROUTE_PROFILE_PORTAL, MapTravel_GetPortalAggro(), _
 		MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
 	$g_b_MapTravelCorridorExceeded = False
 	$g_b_MapTravelCorridorLogged = False
@@ -153,12 +153,7 @@ Func MapTravel_GetPortalCallFunc()
 EndFunc
 
 Func MapTravel_ConfigurePathfinderForPortal()
-	Local $l_i_Init = Pathfinder_Initialize()
-	If $l_i_Init = 0 Then Return False
-	Pathfinder_SetPathUpdateInterval(2500)
-	Pathfinder_SetWaypointReachedDistance(250)
-	Pathfinder_SetSimplifyRange(1250)
-	Return True
+	Return PathRoute_ConfigurePathfinder($GC_S_PATHROUTE_PROFILE_PORTAL, False)
 EndFunc
 
 Func MapTravel_OnPortalCrossed()
@@ -259,7 +254,7 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX 
 
 		SmartCast_EnsureReady(False)
 		MapTravel_ConfigurePathfinderForPortal()
-		Local $l_b_Ok = Pathfinder_MoveTo($a_f_X, $a_f_Y, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
+		Local $l_b_Ok = PathRoute_MoveTo($a_f_X, $a_f_Y, $GC_S_PATHROUTE_PROFILE_PORTAL, MapTravel_GetPortalAggro(), _
 			MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
 		LootPickup_Sweep()
 

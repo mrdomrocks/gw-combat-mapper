@@ -215,18 +215,7 @@ Func Coverage_FilterReachable(ByRef $a_af2_Candidates, $a_b_Verbose = True)
 EndFunc
 
 Func Coverage_ConfigurePathfinder($a_b_Verbose = False)
-	Local $l_i_Init = Pathfinder_Initialize()
-	If $l_i_Init = 0 Then
-		If $a_b_Verbose Then Out("ERROR: Pathfinder_Initialize failed")
-		Return False
-	ElseIf $l_i_Init = 2 And $a_b_Verbose Then
-		Out("WARNING: maps.rar missing - pathfinding may fail")
-	EndIf
-	; Less frequent recalc reduces path-index resets; tighter simplify keeps routes direct.
-	Pathfinder_SetPathUpdateInterval(2500)
-	Pathfinder_SetWaypointReachedDistance(200)
-	Pathfinder_SetSimplifyRange(900)
-	Return True
+	Return PathRoute_ConfigurePathfinder($GC_S_PATHROUTE_PROFILE_COVERAGE, $a_b_Verbose)
 EndFunc
 
 ; Skip waypoints already reached or passed (fight pull / overshoot on vanquish reversals).
