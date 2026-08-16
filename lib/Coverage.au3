@@ -4,6 +4,7 @@
 ; Route storage uses parallel 1D arrays (AutoIt global 2D arrays are unreliable).
 
 #include "MapRoute.au3"
+#include "PathRoute.au3"
 
 Global $g_a_CoverageX[1]
 Global $g_a_CoverageY[1]
@@ -203,51 +204,14 @@ EndFunc
 
 ; @extended = kept count. Returns 2D array for _Coverage_AssignRoute.
 Func Coverage_FilterReachable(ByRef $a_af2_Candidates, $a_b_Verbose = True)
-	Local $l_a_Reachable[1][2]
-	$l_a_Reachable[0][0] = 0
-	$l_a_Reachable[0][1] = 0
-	Local $l_i_Kept = 0
-
 	Local $l_i_CandCount = _Coverage_PointCount2D($a_af2_Candidates)
-	If $l_i_CandCount < 1 Then Return SetExtended(0, $l_a_Reachable)
-
-	Local $l_i_MapID = Map_GetMapID()
-	Local $l_f_StartX = Agent_GetAgentInfo(-2, "X")
-	Local $l_f_StartY = Agent_GetAgentInfo(-2, "Y")
-	Local $l_i_Checked = 0
-
-	If Not Pathfinder_IsMapAvailable($l_i_MapID) Then
-		If $a_b_Verbose Then Out("ERROR: Map " & $l_i_MapID & " is not available in Pathfinder maps.rar")
-		Return SetExtended(0, $l_a_Reachable)
+	If $l_i_CandCount < 1 Then
+		Local $l_a_Empty[1][2]
+		$l_a_Empty[0][0] = 0
+		$l_a_Empty[0][1] = 0
+		Return SetExtended(0, $l_a_Empty)
 	EndIf
-
-	For $i = 0 To $l_i_CandCount - 1
-		If Not $g_b_BotRunning Or $g_b_StopRequested Then ExitLoop
-
-		$l_i_Checked += 1
-		Local $l_f_CellX = $a_af2_Candidates[$i][0]
-		Local $l_f_CellY = $a_af2_Candidates[$i][1]
-
-		Local $l_a_Path = Pathfinder_FindPath($l_i_MapID, $l_f_StartX, $l_f_StartY, -1, $l_f_CellX, $l_f_CellY, -1, 0)
-		If IsArray($l_a_Path) And UBound($l_a_Path) >= 0 Then
-			If $l_i_Kept < 1 Then
-				$l_a_Reachable[0][0] = $l_f_CellX
-				$l_a_Reachable[0][1] = $l_f_CellY
-				$l_i_Kept = 1
-			Else
-				_Coverage_AppendPoint2D($l_a_Reachable, $l_f_CellX, $l_f_CellY)
-				$l_i_Kept += 1
-			EndIf
-		EndIf
-
-		If $a_b_Verbose And Mod($l_i_Checked, 25) = 0 Then
-			Out("Reachability filter: " & $l_i_Checked & "/" & $l_i_CandCount & " (kept " & $l_i_Kept & ")")
-		EndIf
-
-		Sleep(10)
-	Next
-
-	Return SetExtended($l_i_Kept, $l_a_Reachable)
+	Return PathRoute_FilterReachable2D($a_af2_Candidates, $l_i_CandCount, $a_b_Verbose)
 EndFunc
 
 Func Coverage_ConfigurePathfinder($a_b_Verbose = False)
@@ -298,6 +262,7 @@ EndFunc
 
 Func Coverage_BuildRoute($a_b_Verbose = True)
 	Coverage_LoadConfig()
+	PathRoute_LoadConfig()
 
 	; Prefer hand-tuned vanquish route for this map title (caravan / single-map by title).
 	If $g_s_CoverageMapTitle <> "" Then
@@ -305,16 +270,31 @@ Func Coverage_BuildRoute($a_b_Verbose = True)
 		Local $l_i_RouteCount = MapRoute_TryLoadForTitle($g_s_CoverageMapTitle, $l_a_RouteX, $l_a_RouteY)
 		If $l_i_RouteCount > 0 Then
 			Coverage_ConfigurePathfinder($a_b_Verbose)
-			_Coverage_SetRoute1D($l_a_RouteX, $l_a_RouteY, $l_i_RouteCount)
-			$g_i_CoverageIndex = 0
-			$g_b_CoverageIsVanquishRoute = True
-			$g_i_CoverageRepeatPass = 0
-			$g_b_CoverageHoldSkipPassed = False
-			Coverage_SaveRoute()
-			Coverage_SaveProgress()
-			If $a_b_Verbose Then Out("Map route for " & $g_s_CoverageMapTitle & ": " & $l_i_RouteCount & _
-				" waypoints (vanquish path, up to " & $GC_I_VANQUISH_ROUTE_REPEATS & " extra passes if still open)")
-			Return True
+			Local $l_i_OriginalCount = $l_i_RouteCount
+			If $g_b_PathRouteValidateVanquish Then
+				Local $l_i_MapID = Map_GetMapID()
+				Local $l_f_StartX = Agent_GetAgentInfo(-2, "X")
+				Local $l_f_StartY = Agent_GetAgentInfo(-2, "Y")
+				$l_i_RouteCount = PathRoute_PruneUnreachable($l_i_MapID, $l_a_RouteX, $l_a_RouteY, $l_i_RouteCount, _
+					$l_f_StartX, $l_f_StartY, $a_b_Verbose, "vanquish " & $g_s_CoverageMapTitle)
+				If $l_i_RouteCount < 1 Then
+					If $a_b_Verbose Then Out("Vanquish route: all anchors unreachable — using lawnmower fallback.")
+				ElseIf $a_b_Verbose And $l_i_RouteCount < $l_i_OriginalCount Then
+					Out("Vanquish route pruned: " & $l_i_RouteCount & "/" & $l_i_OriginalCount)
+				EndIf
+			EndIf
+			If $l_i_RouteCount > 0 Then
+				_Coverage_SetRoute1D($l_a_RouteX, $l_a_RouteY, $l_i_RouteCount)
+				$g_i_CoverageIndex = 0
+				$g_b_CoverageIsVanquishRoute = True
+				$g_i_CoverageRepeatPass = 0
+				$g_b_CoverageHoldSkipPassed = False
+				Coverage_SaveRoute()
+				Coverage_SaveProgress()
+				If $a_b_Verbose Then Out("Map route for " & $g_s_CoverageMapTitle & ": " & $l_i_RouteCount & _
+					" waypoints (vanquish path, up to " & $GC_I_VANQUISH_ROUTE_REPEATS & " extra passes if still open)")
+				Return True
+			EndIf
 		ElseIf $a_b_Verbose Then
 			Out("No hand-tuned route for " & $g_s_CoverageMapTitle & " — using lawnmower fallback.")
 		EndIf

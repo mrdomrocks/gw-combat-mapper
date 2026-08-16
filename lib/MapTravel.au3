@@ -6,6 +6,7 @@
 #include "LootPickup.au3"
 #include "maps\LocationsIDS.au3"
 #include "maps\GoOutRoutes.au3"
+#include "PathRoute.au3"
 
 Global $g_b_HardMode = True
 Global $g_s_ActiveTitle = ""
@@ -17,6 +18,8 @@ Global $g_f_MapTravelSegFromY = 0
 Global $g_f_MapTravelSegToX = 0
 Global $g_f_MapTravelSegToY = 0
 Global $g_b_MapTravelSegActive = False
+Global $g_b_MapTravelCorridorExceeded = False
+Global $g_b_MapTravelCorridorLogged = False
 Global Const $GC_F_MAPTRAVEL_PORTAL_AGGRO_DEFAULT = 800
 Global Const $GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT = 500
 ; True: leave via recorded caravan portal routes (vanquished / outpost / transit-only).
@@ -30,6 +33,7 @@ Func MapTravel_LoadConfig($a_s_ConfigPath = "")
 	$g_f_MapTravelPortalCorridor = Number(IniRead($a_s_ConfigPath, "Travel", "PortalPathCorridor", _
 		String($GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT)))
 	If $g_f_MapTravelPortalCorridor <= 0 Then $g_f_MapTravelPortalCorridor = $GC_F_MAPTRAVEL_PORTAL_CORRIDOR_DEFAULT
+	PathRoute_LoadConfig($a_s_ConfigPath)
 EndFunc
 
 Func MapTravel_GetPortalAggro()
@@ -47,6 +51,36 @@ EndFunc
 
 Func MapTravel_ClearPortalSegment()
 	$g_b_MapTravelSegActive = False
+	$g_b_MapTravelCorridorExceeded = False
+	$g_b_MapTravelCorridorLogged = False
+EndFunc
+
+Func MapTravel_CheckPortalCorridor()
+	If Not $g_b_MapTravelSegActive Then Return
+	Local $l_f_Px = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_Py = Agent_GetAgentInfo(-2, "Y")
+	Local $l_f_Dist = MapTravel_PointToSegmentDist($l_f_Px, $l_f_Py, $g_f_MapTravelSegFromX, $g_f_MapTravelSegFromY, _
+		$g_f_MapTravelSegToX, $g_f_MapTravelSegToY)
+	If $l_f_Dist <= $g_f_MapTravelPortalCorridor Then Return
+
+	$g_b_MapTravelCorridorExceeded = True
+	If Not $g_b_MapTravelCorridorLogged Then
+		Out("PathRoute: corridor deviation " & Round($l_f_Dist) & " (limit " & Round($g_f_MapTravelPortalCorridor) & ")")
+		$g_b_MapTravelCorridorLogged = True
+	EndIf
+EndFunc
+
+Func MapTravel_NudgeTowardSegmentMidpoint()
+	If Not $g_b_MapTravelSegActive Then Return
+	Local $l_f_Mx = ($g_f_MapTravelSegFromX + $g_f_MapTravelSegToX) / 2
+	Local $l_f_My = ($g_f_MapTravelSegFromY + $g_f_MapTravelSegToY) / 2
+	Out("PathRoute: nudging toward corridor midpoint (" & Round($l_f_Mx) & "," & Round($l_f_My) & ")")
+	SmartCast_EnsureReady(False)
+	MapTravel_ConfigurePathfinderForPortal()
+	Pathfinder_MoveTo($l_f_Mx, $l_f_My, -1, "UAI_GetObstacles", MapTravel_GetPortalAggro(), _
+		MapTravel_GetPortalFightOut(), MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc())
+	$g_b_MapTravelCorridorExceeded = False
+	$g_b_MapTravelCorridorLogged = False
 EndFunc
 
 ; Perpendicular distance from (px,py) to the line segment (x1,y1)-(x2,y2).
@@ -99,6 +133,7 @@ EndFunc
 Func MapTravel_Tick()
 	MapTravel_WaitIfPaused()
 	If $g_b_StopRequested Then Return
+	MapTravel_CheckPortalCorridor()
 	SmartCast_EnsureReady(False)
 	LootPickup_Tick()
 	If IsFunc(Execute("CombatLogger_Tick")) Then CombatLogger_Tick()
@@ -203,6 +238,8 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX 
 		$l_f_FromY = Agent_GetAgentInfo(-2, "Y")
 	EndIf
 	MapTravel_SetPortalSegment($l_f_FromX, $l_f_FromY, $a_f_X, $a_f_Y)
+	$g_b_MapTravelCorridorExceeded = False
+	$g_b_MapTravelCorridorLogged = False
 
 	While $l_i_Retry < $GC_I_PORTAL_WP_RETRIES And Not $g_b_StopRequested
 		MapTravel_WaitIfPaused()
@@ -241,6 +278,7 @@ Func MapTravel_MoveToPortalPoint($a_f_X, $a_f_Y, $a_s_Label = "", $a_f_SegFromX 
 		$l_i_Retry += 1
 		If $l_i_Retry < $GC_I_PORTAL_WP_RETRIES Then
 			Out($l_s_Lbl & " retry " & $l_i_Retry & "/" & $GC_I_PORTAL_WP_RETRIES & " dist=" & Round($l_f_DistAfter))
+			If $g_b_MapTravelCorridorExceeded Then MapTravel_NudgeTowardSegmentMidpoint()
 		EndIf
 	WEnd
 
@@ -302,29 +340,40 @@ EndFunc
 ; Pick the closest portal-route waypoint (resume after sweep / mid-map start).
 Func MapTravel_PortalRouteStartIndex(ByRef $a_af2_Points, $a_f_ReachDist = 500)
 	If Not IsArray($a_af2_Points) Or UBound($a_af2_Points) < 1 Then Return 0
+	Local $l_a_X, $l_a_Y
+	Local $l_i_Count = PathRoute_CopyPath2DTo1D($a_af2_Points, $l_a_X, $l_a_Y)
+	If $l_i_Count < 1 Then Return 0
 	Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
 	Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
-	Local $l_i_Best = 0
-	Local $l_f_BestDist = 999999999
-	Local $l_i_Last = UBound($a_af2_Points) - 1
-	Local $i
-	For $i = 0 To $l_i_Last
-		Local $l_f_Dist = Sqrt(($l_f_Mx - $a_af2_Points[$i][0]) ^ 2 + ($l_f_My - $a_af2_Points[$i][1]) ^ 2)
-		If $l_f_Dist < $l_f_BestDist Then
-			$l_f_BestDist = $l_f_Dist
-			$l_i_Best = $i
+	Return PathRoute_FindJoinIndex($l_a_X, $l_a_Y, $l_i_Count, $l_f_Mx, $l_f_My, $a_f_ReachDist)
+EndFunc
+
+; Validate portal anchor chain; returns kept count (0 = validation failed / too few anchors).
+Func MapTravel_ValidatePortalPath(ByRef $a_af2_Points, $a_s_Context = "")
+	If Not IsArray($a_af2_Points) Or UBound($a_af2_Points) < 1 Then Return 0
+	If Not $g_b_PathRouteValidatePortal Then Return UBound($a_af2_Points)
+
+	Local $l_i_MapID = Map_GetMapID()
+	Local $l_f_StartX = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_StartY = Agent_GetAgentInfo(-2, "Y")
+	Local $l_i_Original = UBound($a_af2_Points)
+	Local $l_i_Kept = PathRoute_PruneUnreachable2D($l_i_MapID, $a_af2_Points, $l_f_StartX, $l_f_StartY, True, $a_s_Context)
+	If $l_i_Kept < 2 Then
+		If $l_i_Kept > 0 Then
+			Out("PathRoute: portal path has " & $l_i_Kept & "/" & $l_i_Original & " anchors after prune — need >= 2 for corridor walk.")
 		EndIf
-	Next
-	; If already near a point, skip to the next one along the chain.
-	If $l_i_Best < $l_i_Last And $l_f_BestDist <= $a_f_ReachDist Then
-		Return $l_i_Best + 1
+		Return 0
 	EndIf
-	Return $l_i_Best
+	Return $l_i_Kept
 EndFunc
 
 ; Walk full vanquish transit/outpost path (all WPs, portal nudge on last) — mirrors _Vanquisher_RunAggroPortalPath.
-Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNearest = True)
+Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNearest = True, $a_b_Validate = True)
 	If Not IsArray($a_af2_Points) Or UBound($a_af2_Points) < 1 Then Return False
+	If $a_b_Validate And $g_b_PathRouteValidatePortal Then
+		Local $l_i_Valid = MapTravel_ValidatePortalPath($a_af2_Points, StringStripWS($a_s_Label, 3))
+		If $l_i_Valid < 2 Then Return False
+	EndIf
 	Local $l_i_Last = UBound($a_af2_Points) - 1
 	If $l_i_Last < 0 Then Return False
 	Local $l_i_Before = Map_GetMapID()
@@ -548,7 +597,42 @@ Func MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle)
 	If Not MapTravel_TryGetCaravanPortalPath(Map_GetMapID(), $a_s_TargetTitle, $a_Path, $l_s_Label) Then Return False
 	Out("Caravan portal route " & $l_s_Label & "(combat on, F8 pause for manual XY)")
 	If MapTravel_RunPortalRoute($a_Path, $l_s_Label) Then Return True
+	Local $l_i_Target = MapCatalog_GetMapID($a_s_TargetTitle)
+	If $l_i_Target > 0 And $g_b_PathRouteValidatePortal Then
+		Out("Caravan portal route " & $l_s_Label & "validation failed — trying dest-aware beeline.")
+		If MapTravel_FindPathToPortalAndCross($l_i_Target, $a_s_TargetTitle) Then Return True
+	EndIf
 	Out("Caravan portal route " & $l_s_Label & "did not cross (map " & Map_GetMapID() & ").")
+	Return False
+EndFunc
+
+Func MapTravel_TryJoinRecordedPortalRoute($a_s_TargetTitle)
+	If Not $g_b_PathRoutePortalJoinRecorded Then Return False
+	If Not Map_GetInstanceInfo("IsExplorable") Then Return False
+
+	Local $a_Path, $l_s_Label = ""
+	If Not MapTravel_TryGetCaravanPortalPath(Map_GetMapID(), $a_s_TargetTitle, $a_Path, $l_s_Label) Then Return False
+
+	Local $l_a_X, $l_a_Y
+	Local $l_i_Count = PathRoute_CopyPath2DTo1D($a_Path, $l_a_X, $l_a_Y)
+	If $l_i_Count < 2 Then Return False
+
+	Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
+	Local $l_i_Join = PathRoute_FindJoinIndex($l_a_X, $l_a_Y, $l_i_Count, $l_f_Mx, $l_f_My)
+	Out("PathRoute: portal join at WP " & ($l_i_Join + 1) & "/" & $l_i_Count & " (" & $l_s_Label & ")")
+
+	Local $l_i_Trimmed = $l_i_Count - $l_i_Join
+	If $l_i_Trimmed < 2 Then Return False
+
+	Local $l_a_Joined[$l_i_Trimmed][2]
+	Local $i
+	For $i = 0 To $l_i_Trimmed - 1
+		$l_a_Joined[$i][0] = $l_a_X[$l_i_Join + $i]
+		$l_a_Joined[$i][1] = $l_a_Y[$l_i_Join + $i]
+	Next
+
+	If MapTravel_RunPortalRoute($l_a_Joined, $l_s_Label & "join ", False) Then Return True
 	Return False
 EndFunc
 
@@ -655,6 +739,11 @@ Func MapTravel_TryPortalToTarget($a_s_TargetTitle, $a_b_TransitOnly = False)
 	If $l_i_Target > 0 And Map_GetMapID() = $l_i_Target Then Return True
 
 	If $l_i_Target > 0 And Not MapTravel_SkipDirectBreachHop($a_s_TargetTitle) Then
+		If Not $l_b_PreferRecorded And $g_b_PathRoutePortalJoinRecorded Then
+			If MapTravel_TryJoinRecordedPortalRoute($a_s_TargetTitle) Then
+				If Map_GetMapID() = $l_i_Target Then Return True
+			EndIf
+		EndIf
 		If Map_GetInstanceInfo("IsExplorable") Or Map_IsOutpost(Map_GetMapID()) Then
 			If MapTravel_FindPathToPortalAndCross($l_i_Target, $a_s_TargetTitle) Then Return True
 		EndIf
