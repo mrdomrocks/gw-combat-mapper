@@ -647,6 +647,34 @@ Func MapTravel_SkipDirectBreachHop($a_s_TargetTitle)
 	Return $l_i_Map = $DragonsGullet_Map Or $l_i_Map = $FlameTempleCorridor_Map
 EndFunc
 
+; Walk the recorded FTC <-> DG portal and nudge until the map id flips.
+Func MapTravel_TryCrossFlameTempleGulletPortal()
+	Local $l_i_From = Number(Map_GetMapID())
+	Local $l_i_Other = 0
+	If $l_i_From = $FlameTempleCorridor_Map Then
+		$l_i_Other = $DragonsGullet_Map
+	ElseIf $l_i_From = $DragonsGullet_Map Then
+		$l_i_Other = $FlameTempleCorridor_Map
+	Else
+		Return False
+	EndIf
+
+	If MapTravel_FindPathToPortalAndCross($l_i_Other, "FTC/DG") Then Return True
+
+	Local $a_Path, $l_s_Label = ""
+	If $l_i_From = $FlameTempleCorridor_Map Then
+		$a_Path = $aFlameTempleCorridorToDragonsGulletPortalPath
+		$l_s_Label = "FTC->DG "
+	ElseIf MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_Path) Then
+		$l_s_Label = "DG->FTC (rev) "
+	Else
+		Return False
+	EndIf
+
+	If MapTravel_RunPortalRoute($a_Path, $l_s_Label, True, False) Then Return True
+	Return Map_GetMapID() = $l_i_Other
+EndFunc
+
 ; Long-crossing GoOutRoutes fallback (Pathfinder beeline is tried first).
 ; $a_b_TransitOnly is kept for callers; map ID already selects the route.
 Func MapTravel_TryGetHardcodedPortalPath($a_s_TargetTitle, ByRef $a_a_Path, ByRef $a_s_Label, $a_b_TransitOnly = False)

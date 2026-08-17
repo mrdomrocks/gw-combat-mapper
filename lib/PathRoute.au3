@@ -1,4 +1,5 @@
 #include-once
+#include "maps\LocationsIDS.au3"
 
 ; Shared anchor-chain validation for vanquish routes and portal walks.
 ; Coordinate arrays define strategic waypoints; Pathfinder validates reachability.
@@ -253,7 +254,14 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 	Local $l_i_TypeOld = Map_GetInstanceInfo("Type")
 	Local $l_f_Reach = PathRoute_GetReachedDistance($a_s_Profile)
 	Local $l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile)
-	If Not IsArray($l_a_Path) Then Return False
+	If Not IsArray($l_a_Path) Then
+		If $l_i_StartMap <> $FlameTempleCorridor_Map And $l_i_StartMap <> $DragonsGullet_Map Then Return False
+		Out("PathRoute: no mesh path on MapID=" & $l_i_StartMap & " — beelining toward FTC/DG dest")
+		Local $l_a_Beeline[1][2]
+		$l_a_Beeline[0][0] = $a_f_DestX
+		$l_a_Beeline[0][1] = $a_f_DestY
+		$l_a_Path = $l_a_Beeline
+	EndIf
 
 	$g_f_PathRouteLastMoveX = 0
 	$g_f_PathRouteLastMoveY = 0
@@ -289,8 +297,9 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 		EndIf
 
 		If TimerDiff($l_h_Repath) >= $g_i_PathRoutePathUpdateInterval Then
-			$l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
-			If IsArray($l_a_Path) Then
+			Local $l_a_Repath = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
+			If IsArray($l_a_Repath) Then
+				$l_a_Path = $l_a_Repath
 				$l_i_PathIndex = PathRoute_FindPathResumeIndex($l_a_Path, $l_f_Cx, $l_f_Cy, $l_f_Reach)
 			EndIf
 			$l_h_Repath = TimerInit()
@@ -309,8 +318,9 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 					PathRoute_UnstuckNudge()
 					$g_f_PathRouteLastMoveX = 0
 					$g_f_PathRouteLastMoveY = 0
-					$l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
-					If IsArray($l_a_Path) Then
+					Local $l_a_StuckPath = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
+					If IsArray($l_a_StuckPath) Then
+						$l_a_Path = $l_a_StuckPath
 						$l_i_PathIndex = PathRoute_FindPathResumeIndex($l_a_Path, $l_f_Cx, $l_f_Cy, $l_f_Reach)
 					EndIf
 					$l_i_StuckStrikes = 0

@@ -185,3 +185,10 @@ Func MapRoute_IsFlameTempleGulletMap($a_i_MapID = -1)
 	If $a_i_MapID < 0 Then $a_i_MapID = Number(Map_GetMapID())
 	Return $a_i_MapID = $FlameTempleCorridor_Map Or $a_i_MapID = $DragonsGullet_Map
 EndFunc
+
+Func MapRoute_GetFlameTempleGulletOtherMap($a_i_MapID = -1)
+	If $a_i_MapID < 0 Then $a_i_MapID = Number(Map_GetMapID())
+	If $a_i_MapID = $FlameTempleCorridor_Map Then Return $DragonsGullet_Map
+	If $a_i_MapID = $DragonsGullet_Map Then Return $FlameTempleCorridor_Map
+	Return 0
+EndFunc

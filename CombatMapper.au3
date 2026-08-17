@@ -391,7 +391,7 @@ Func RunCaravanSequence()
 
 	If Map_GetInstanceInfo("IsExplorable") Then
 		Local $l_i_CurrentStage = _Vanquisher_AscalonCaravanStageForCurrentMap()
-		If $l_i_CurrentStage >= 0 And Number($g_a_AscalonCaravanPlan[$l_i_CurrentStage][0]) = Map_GetMapID() Then
+		If $l_i_CurrentStage >= 0 And _Vanquisher_IsAscalonCaravanEntryMap(Map_GetMapID(), $l_i_CurrentStage) Then
 			$l_b_ResumeOnSpine = True
 			$l_i_LoopStart = $l_i_CurrentStage
 			Out("Resume on caravan spine: " & $g_a_AscalonCaravanPlan[$l_i_CurrentStage][8] & _
@@ -454,7 +454,7 @@ Func RunCaravanSequence()
 			": portal " & $l_s_Here & " -> " & $l_s_Next & " (" & $l_i_NextID & ") ===")
 		UpdateStatusLabel("portal " & ($i + 1) & "->" & ($i + 2) & " " & $l_s_Next)
 
-		If Map_GetMapID() <> $l_i_HereID And Map_GetMapID() <> $l_i_NextID Then
+		If Not _Vanquisher_IsAscalonCaravanEntryMap(Map_GetMapID(), $i) And Map_GetMapID() <> $l_i_NextID Then
 			Out("Not on expected map (have " & Map_GetMapID() & "). Re-entering " & $l_s_Here & "...")
 			If Not MapTravel_EnterTitle($l_s_Here, 8, True) Then
 				Out("Re-enter failed; trying direct advance to " & $l_s_Next)
@@ -493,7 +493,7 @@ EndFunc
 ; Vanquished: leave via recorded caravan portal routes. Unvanquished: farm then Pathfinder hop.
 Func _CaravanProcessMapArrival($a_s_Title, $a_i_LogStartStage, $a_s_LogStartTitle)
 	VanquishCheck_WaitUntilReady(False)
-	If VanquishCheck_IsAreaVanquished() Then
+	If VanquishCheck_IsCoverageVanquished() Then
 		$g_b_CaravanPreferPortalRoute = True
 		Out("Skip sweep on " & $a_s_Title & " — already vanquished; using caravan portal route to leave.")
 		Return True
@@ -503,7 +503,7 @@ Func _CaravanProcessMapArrival($a_s_Title, $a_i_LogStartStage, $a_s_LogStartTitl
 		Out("Lawnmower failed/stopped on " & $a_s_Title & " — stopping caravan.")
 		Return False
 	EndIf
-	If VanquishCheck_IsAreaVanquished() Then
+	If VanquishCheck_IsCoverageVanquished() Then
 		$g_b_CaravanPreferPortalRoute = True
 		Out($a_s_Title & " vanquished during sweep — leave via caravan portal route.")
 	Else
@@ -522,7 +522,7 @@ Func _CaravanSweepCurrentMap($a_s_Title)
 	EndIf
 
 	VanquishCheck_WaitUntilReady(False)
-	If VanquishCheck_IsAreaVanquished() Then
+	If VanquishCheck_IsCoverageVanquished() Then
 		Out("Skip lawnmower on " & $a_s_Title & " — HM vanquish complete.")
 		Return True
 	EndIf
@@ -603,7 +603,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 	SmartCast_EnsureReady(True)
 	VanquishCheck_WaitUntilReady(False)
-	If VanquishCheck_IsAreaVanquished() Then
+	If VanquishCheck_IsCoverageVanquished() Then
 		Out("Skip coverage sweep — area already vanquished; leave via portal route.")
 		$g_i_CoverageIndex = $g_i_CoverageCount
 		$g_b_SweepActive = False
@@ -654,7 +654,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		While $g_b_BotRunning And Not $g_b_StopRequested And Not Coverage_IsComplete()
 			CombatMapper_WaitIfPaused()
 			If $g_b_StopRequested Then ExitLoop
-			If VanquishCheck_IsAreaVanquished() Then
+			If VanquishCheck_IsCoverageVanquished() Then
 				Out("Coverage abort — area vanquished; switching to portal route.")
 				$g_i_CoverageIndex = $g_i_CoverageCount
 				$l_b_VanquishedAbort = True
@@ -698,12 +698,11 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 					$l_b_MoveInterrupted = True
 					ExitLoop
 				EndIf
+				If CombatMapper_HandleFlameTempleGulletMove($l_i_MapBeforeMove, $l_f_X, $l_f_Y) Then
+					$l_i_WaypointRetries = 0
+					ContinueLoop
+				EndIf
 				If Map_GetMapID() <> $l_i_MapBeforeMove Then
-					If MapRoute_IsFlameTempleGulletMap() Then
-						Out("FTC/DG map-id change — continuing combined route.")
-						$l_i_WaypointRetries = 0
-						ContinueLoop
-					EndIf
 					Out("Pathfinder_MoveTo interrupted (map change). Stopping map sweep.")
 					$l_b_MoveInterrupted = True
 					ExitLoop
@@ -743,7 +742,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 		If $l_b_VanquishedAbort Or $l_b_MoveInterrupted Or $g_b_StopRequested Or Not $g_b_BotRunning Then ExitLoop
 		If Not Coverage_IsComplete() Then ExitLoop
-		If VanquishCheck_IsAreaVanquished() Then
+		If VanquishCheck_IsCoverageVanquished() Then
 			$l_b_VanquishedAbort = True
 			ExitLoop
 		EndIf
@@ -776,6 +775,37 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		$g_b_BotRunning = False
 		_SetIdleUiState()
 	EndIf
+EndFunc
+
+Func CombatMapper_OnFlameTempleGulletMapChange()
+	If Map_GetInstanceInfo("IsLoading") Then Map_WaitMapIsLoaded()
+	Sleep(400)
+	VanquishCheck_OnMapLoaded(False)
+	PathRoute_BeginSession($GC_S_PATHROUTE_PROFILE_COVERAGE, False)
+EndFunc
+
+; True when the coverage loop should retry the current FTC/DG waypoint after a portal hop.
+Func CombatMapper_HandleFlameTempleGulletMove($a_i_MapBefore, $a_f_DestX, $a_f_DestY)
+	If Not MapRoute_IsFlameTempleGulletMap($a_i_MapBefore) And Not MapRoute_IsFlameTempleGulletMap() Then Return False
+
+	If Map_GetMapID() <> $a_i_MapBefore Then
+		Out("FTC/DG map-id change — continuing combined route.")
+		CombatMapper_OnFlameTempleGulletMapChange()
+		Return True
+	EndIf
+
+	Local $l_f_Mx = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_My = Agent_GetAgentInfo(-2, "Y")
+	If PathRoute_IsSegmentReachable($a_i_MapBefore, $l_f_Mx, $l_f_My, $a_f_DestX, $a_f_DestY) Then Return False
+
+	Local $l_i_Other = MapRoute_GetFlameTempleGulletOtherMap($a_i_MapBefore)
+	Out("FTC/DG dest not on this mesh — crossing portal toward MapID=" & $l_i_Other)
+	If Not MapTravel_TryCrossFlameTempleGulletPortal() Then Return False
+	If Not MapRoute_IsFlameTempleGulletMap() Then Return False
+
+	Out("FTC/DG portal crossed — continuing combined route on MapID=" & Map_GetMapID())
+	CombatMapper_OnFlameTempleGulletMapChange()
+	Return True
 EndFunc
 
 ; Combined CallFunc for Pathfinder_MoveTo
