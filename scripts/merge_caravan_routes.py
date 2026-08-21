@@ -34,7 +34,7 @@ ROUTES = [
     ("EasternFrontier", 107, "Proph_Ascalon/EasternFrontier.au3", None),
 ]
 
-SKIP = {"DiessaLowlands", "NorthKrytaProvince", "FlameTempleCorridor", "DragonsGullet"}  # hand-tuned / combined routes
+SKIP = {"DiessaLowlands", "NorthKrytaProvince", "FlameTempleCorridor", "DragonsGullet"}  # hand-tuned leftover coords
 
 
 def dist(a: tuple[float, float], b: tuple[float, float]) -> float:

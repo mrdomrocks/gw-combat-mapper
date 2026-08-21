@@ -6,6 +6,10 @@
 #include "LootPickup.au3"
 #include "maps\LocationsIDS.au3"
 #include "maps\GoOutRoutes.au3"
+#include "maps\GoOutTOAKrytaSpine.au3"
+#include "maps\GoOutSouthernShiverpeaksSpine.au3"
+#include "maps\GoOutIceCavesSpine.au3"
+#include "maps\GoOutOutpostLookup.au3"
 #include "PathRoute.au3"
 
 Global $g_b_HardMode = True
@@ -443,11 +447,10 @@ EndFunc
 Func MapTravel_TryGetCaravanPortalPath($a_i_FromMap, $a_s_TargetTitle, ByRef $a_a_Path, ByRef $a_s_Label)
 	If $a_i_FromMap <= 0 Or $a_s_TargetTitle = "" Then Return False
 
-	If $a_i_FromMap = $TheBlackCurtain_Outpost And $a_s_TargetTitle = "TheBlackCurtain" Then
-		$a_a_Path = $aTheBlackCurtainOutpostPath
-		$a_s_Label = "TOA->BlackCurtain "
-		Return True
-	EndIf
+	If MapTravel_TryGetTOAKrytaSpinePath($a_i_FromMap, $a_s_TargetTitle, $a_a_Path, $a_s_Label) Then Return True
+	If MapTravel_TryGetSouthernShiverpeaksSpinePath($a_i_FromMap, $a_s_TargetTitle, $a_a_Path, $a_s_Label) Then Return True
+	If MapTravel_TryGetIceCavesSpinePath($a_i_FromMap, $a_s_TargetTitle, $a_a_Path, $a_s_Label) Then Return True
+	If MapTravel_TryGetOutpostPath($a_i_FromMap, $a_s_TargetTitle, $a_a_Path, $a_s_Label) Then Return True
 
 	Switch $a_s_TargetTitle
 		Case "CursedLands"
@@ -590,6 +593,7 @@ Func MapTravel_TryGetCaravanPortalPath($a_i_FromMap, $a_s_TargetTitle, ByRef $a_
 EndFunc
 
 Func MapTravel_ShouldPreferCaravanPortalRoute()
+	If MapTravel_IsIceCavesOutpost() Then Return True
 	If Not Map_GetInstanceInfo("IsExplorable") Then Return True
 	If $g_b_CaravanPreferPortalRoute Then Return True
 	If VanquishCheck_IsAreaVanquished() Then Return True
@@ -600,7 +604,8 @@ Func MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle)
 	Local $a_Path, $l_s_Label = ""
 	If Not MapTravel_TryGetCaravanPortalPath(Map_GetMapID(), $a_s_TargetTitle, $a_Path, $l_s_Label) Then Return False
 	Out("Caravan portal route " & $l_s_Label & "(combat on, F8 pause for manual XY)")
-	If MapTravel_RunPortalRoute($a_Path, $l_s_Label) Then Return True
+	Local $l_b_Validate = Not Map_IsOutpost(Map_GetMapID())
+	If MapTravel_RunPortalRoute($a_Path, $l_s_Label, True, $l_b_Validate) Then Return True
 	Local $l_i_Target = MapCatalog_GetMapID($a_s_TargetTitle)
 	If $l_i_Target > 0 And $g_b_PathRouteValidatePortal Then
 		Out("Caravan portal route " & $l_s_Label & "validation failed — trying dest-aware beeline.")
@@ -645,34 +650,6 @@ Func MapTravel_SkipDirectBreachHop($a_s_TargetTitle)
 	If $a_s_TargetTitle <> "TheBreach" Then Return False
 	Local $l_i_Map = Map_GetMapID()
 	Return $l_i_Map = $DragonsGullet_Map Or $l_i_Map = $FlameTempleCorridor_Map
-EndFunc
-
-; Walk the recorded FTC <-> DG portal and nudge until the map id flips.
-Func MapTravel_TryCrossFlameTempleGulletPortal()
-	Local $l_i_From = Number(Map_GetMapID())
-	Local $l_i_Other = 0
-	If $l_i_From = $FlameTempleCorridor_Map Then
-		$l_i_Other = $DragonsGullet_Map
-	ElseIf $l_i_From = $DragonsGullet_Map Then
-		$l_i_Other = $FlameTempleCorridor_Map
-	Else
-		Return False
-	EndIf
-
-	If MapTravel_FindPathToPortalAndCross($l_i_Other, "FTC/DG") Then Return True
-
-	Local $a_Path, $l_s_Label = ""
-	If $l_i_From = $FlameTempleCorridor_Map Then
-		$a_Path = $aFlameTempleCorridorToDragonsGulletPortalPath
-		$l_s_Label = "FTC->DG "
-	ElseIf MapTravel_CopyReversedPath($aFlameTempleCorridorToDragonsGulletPortalPath, $a_Path) Then
-		$l_s_Label = "DG->FTC (rev) "
-	Else
-		Return False
-	EndIf
-
-	If MapTravel_RunPortalRoute($a_Path, $l_s_Label, True, False) Then Return True
-	Return Map_GetMapID() = $l_i_Other
 EndFunc
 
 ; Long-crossing GoOutRoutes fallback (Pathfinder beeline is tried first).
@@ -752,15 +729,21 @@ Func MapTravel_TryPortalToTarget($a_s_TargetTitle, $a_b_TransitOnly = False)
 	If $l_i_Target > 0 And Map_GetMapID() = $l_i_Target Then Return True
 
 	Local $l_b_PreferRecorded = MapTravel_ShouldPreferCaravanPortalRoute()
+	If MapTravel_ForceRecordedPortalRoute($a_s_TargetTitle) Then $l_b_PreferRecorded = True
 	If MapTravel_SkipDirectBreachHop($a_s_TargetTitle) Then $l_b_PreferRecorded = True
 	Local $l_i_Hop = 0
-	While $l_i_Hop < 5 And $l_i_Target > 0 And Map_GetMapID() <> $l_i_Target And Not $g_b_StopRequested
+	While $l_i_Hop < 8 And $l_i_Target > 0 And Map_GetMapID() <> $l_i_Target And Not $g_b_StopRequested
 		$l_i_Hop += 1
 		Local $l_i_Before = Map_GetMapID()
 		If $l_b_PreferRecorded Or $l_i_Hop > 1 Then
 			If MapTravel_TryRunCaravanPortalRoute($a_s_TargetTitle) Then
 				If Map_GetMapID() = $l_i_Target Then Return True
 				If Map_GetMapID() <> $l_i_Before Then
+					If Map_GetMapID() <> $l_i_Target Then
+						MapTravel_MaybeVanquishTOASpineTransit($a_s_TargetTitle)
+						MapTravel_MaybeVanquishSouthernShiverpeaksSpineTransit($a_s_TargetTitle)
+						MapTravel_MaybeVanquishIceCavesSpineTransit($a_s_TargetTitle)
+					EndIf
 					Out("Portal hop landed on map " & Map_GetMapID() & " — continuing to " & $a_s_TargetTitle)
 					ContinueLoop
 				EndIf
@@ -776,10 +759,20 @@ Func MapTravel_TryPortalToTarget($a_s_TargetTitle, $a_b_TransitOnly = False)
 				If Map_GetMapID() = $l_i_Target Then Return True
 			EndIf
 		EndIf
-		If Map_GetInstanceInfo("IsExplorable") Or Map_IsOutpost(Map_GetMapID()) Then
-			If MapTravel_FindPathToPortalAndCross($l_i_Target, $a_s_TargetTitle) Then Return True
+		If Not MapTravel_IsIceCavesOutpost() Then
+			If Map_GetInstanceInfo("IsExplorable") Or Map_IsOutpost(Map_GetMapID()) Then
+				Local $l_i_BeforePf = Map_GetMapID()
+				If MapTravel_FindPathToPortalAndCross($l_i_Target, $a_s_TargetTitle) Then
+					If Map_GetMapID() = $l_i_Target Then Return True
+					If Map_GetMapID() <> $l_i_BeforePf Then
+						MapTravel_MaybeVanquishTOASpineTransit($a_s_TargetTitle)
+						MapTravel_MaybeVanquishSouthernShiverpeaksSpineTransit($a_s_TargetTitle)
+						MapTravel_MaybeVanquishIceCavesSpineTransit($a_s_TargetTitle)
+					EndIf
+				EndIf
+			EndIf
 		EndIf
-		If Map_GetInstanceInfo("IsExplorable") Then
+		If Not MapTravel_IsIceCavesOutpost() And Map_GetInstanceInfo("IsExplorable") Then
 			If MapTravel_DynamicPortalTo($l_i_Target, $a_s_TargetTitle) Then Return True
 		EndIf
 	EndIf
@@ -821,9 +814,36 @@ Func MapTravel_EnsureHardMode()
 	Return False
 EndFunc
 
+Func MapTravel_TravelToTempleOfTheAges()
+	Out("Map travel to Temple of the Ages (" & $TheBlackCurtain_Outpost & ")")
+	If MapTravel_TravelToOutpost($TheBlackCurtain_Outpost) Then
+		Out("Arrived at Temple of the Ages.")
+		Return True
+	EndIf
+	Out("Failed to travel to Temple of the Ages.")
+	Return False
+EndFunc
+
+Func MapTravel_TravelToIceCavesOfSorrow()
+	If MapTravel_IsIceCavesOutpost() Then
+		Out("Already at Ice Caves of Sorrow.")
+		Return True
+	EndIf
+	Out("Map travel to Ice Caves of Sorrow (" & $IceCavesOfSorrow_Outpost & ")")
+	If MapTravel_TravelToOutpost($IceCavesOfSorrow_Outpost) Then
+		Out("Arrived at Ice Caves of Sorrow.")
+		Return True
+	EndIf
+	Out("Failed to travel to Ice Caves of Sorrow.")
+	Return False
+EndFunc
+
 Func MapTravel_TravelToOutpost($a_i_OutpostID)
 	If $a_i_OutpostID <= 0 Then Return False
-	If Map_GetMapID() = $a_i_OutpostID And Not Map_GetInstanceInfo("IsExplorable") Then Return True
+	If Map_GetMapID() = $a_i_OutpostID Then
+		If $a_i_OutpostID = $IceCavesOfSorrow_Outpost Then Return True
+		If Not Map_GetInstanceInfo("IsExplorable") Then Return True
+	EndIf
 
 	If Map_GetInstanceInfo("IsExplorable") Then
 		Out("Resigning to return to outpost before travel...")
@@ -905,6 +925,7 @@ EndFunc
 Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = False)
 	Local $l_i_Target = MapCatalog_GetMapID($a_s_Title)
 	Local $l_i_Outpost = MapCatalog_GetOutpostID($a_s_Title)
+	Local $l_b_TransitOnly = $a_b_TransitOnly
 	If $l_i_Target <= 0 Then
 		Out("Unknown map title: " & $a_s_Title)
 		Return False
@@ -916,12 +937,35 @@ Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = F
 		Return True
 	EndIf
 
-	If Not $a_b_TransitOnly Then
-		If $l_i_Outpost <= 0 Then $l_i_Outpost = $TheBlackCurtain_Outpost
-		Out("Single-map farm: outpost " & $l_i_Outpost & " -> " & $a_s_Title)
-		If Not MapTravel_TravelToOutpost($l_i_Outpost) Then
-			Out("Failed to travel to outpost " & $l_i_Outpost & " for " & $a_s_Title)
-			Return False
+	If Not $l_b_TransitOnly And (MapTravel_CanContinueTOASpineFromCurrent($a_s_Title) Or MapTravel_CanContinueSouthernShiverpeaksSpineFromCurrent($a_s_Title) Or MapTravel_CanContinueIceCavesSpineFromCurrent($a_s_Title)) Then
+		If MapTravel_CanContinueTOASpineFromCurrent($a_s_Title) Then
+			Out("TOA spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
+		ElseIf MapTravel_CanContinueSouthernShiverpeaksSpineFromCurrent($a_s_Title) Then
+			Out("Southern Shiverpeaks spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
+		Else
+			Out("Ice Caves spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
+		EndIf
+		$l_b_TransitOnly = True
+	EndIf
+
+	If Not $l_b_TransitOnly Then
+		If MapTravel_IsIceCavesSpineTarget($a_s_Title) Then
+			If Not MapTravel_IsIceCavesOutpost() Then
+				Out("Ice Caves spine: map travel to entry outpost -> " & $a_s_Title)
+				If Not MapTravel_TravelToIceCavesOfSorrow() Then
+					Out("Failed to map travel to Ice Caves of Sorrow for " & $a_s_Title)
+					Return False
+				EndIf
+			Else
+				Out("Ice Caves spine: leaving outpost toward " & $a_s_Title)
+			EndIf
+		Else
+			If $l_i_Outpost <= 0 Then $l_i_Outpost = $TheBlackCurtain_Outpost
+			Out("Single-map farm: outpost " & $l_i_Outpost & " -> " & $a_s_Title)
+			If Not MapTravel_TravelToOutpost($l_i_Outpost) Then
+				Out("Failed to travel to outpost " & $l_i_Outpost & " for " & $a_s_Title)
+				Return False
+			EndIf
 		EndIf
 	ElseIf Map_GetInstanceInfo("IsExplorable") Then
 		Out("Caravan: transit hop to " & $a_s_Title & " from map " & Map_GetMapID())
@@ -937,13 +981,13 @@ Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = F
 			Return True
 		EndIf
 		Out("GoOut attempt " & ($l_i_Attempt + 1) & " for " & $a_s_Title & " (on map " & Map_GetMapID() & ")")
-		MapTravel_GoOut($a_s_Title, $a_b_TransitOnly)
+		MapTravel_GoOut($a_s_Title, $l_b_TransitOnly)
 		Map_WaitMapIsLoaded()
 		Sleep(750)
 		If Map_GetMapID() = $l_i_Target Then Return True
-		If $a_b_TransitOnly And Map_GetInstanceInfo("IsExplorable") Then
+		If $l_b_TransitOnly And Map_GetInstanceInfo("IsExplorable") Then
 			If MapTravel_DynamicPortalTo($l_i_Target, $a_s_Title) Then Return True
-			MapTravel_GoOut($a_s_Title, $a_b_TransitOnly)
+			MapTravel_GoOut($a_s_Title, $l_b_TransitOnly)
 		EndIf
 		$l_i_Attempt += 1
 	WEnd

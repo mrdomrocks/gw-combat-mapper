@@ -1,6 +1,7 @@
 #include-once
 
-; Ground loot: gold coins, gold-rarity items, Feathers (933), Rations (38613), Compass (38614).
+; Ground loot: gold coins, gold-rarity items, all common/rare materials (GwAu3 $GC_AI_ALL_MATERIALS),
+; Rations (38613), Compass (38614).
 ; Runs from Pathfinder CallFunc after combat, and after waypoints / portal fights.
 
 Global Const $GC_I_MODELID_RATIONS = 38613
@@ -78,6 +79,14 @@ Func LootPickup_Sweep()
 	Next
 EndFunc
 
+Func LootPickup_IsMaterial($a_i_ModelID)
+	Local $i
+	For $i = 1 To $GC_AI_ALL_MATERIALS[0]
+		If $GC_AI_ALL_MATERIALS[$i] = $a_i_ModelID Then Return True
+	Next
+	Return False
+EndFunc
+
 Func LootPickup_ShouldTake($a_p_Item)
 	Local $l_i_ModelID = Item_GetItemInfoByPtr($a_p_Item, "ModelID")
 	Local $l_i_Rarity = Item_GetItemInfoByPtr($a_p_Item, "Rarity")
@@ -85,7 +94,7 @@ Func LootPickup_ShouldTake($a_p_Item)
 	If $l_i_ModelID = $GC_I_MODELID_GOLD_COIN Then
 		Return Item_GetInventoryInfo("GoldCharacter") < $GC_I_LOOT_GOLD_CAP
 	EndIf
-	If $l_i_ModelID = $GC_I_MODELID_FEATHERS Then Return True
+	If LootPickup_IsMaterial($l_i_ModelID) Then Return True
 	If $l_i_ModelID = $GC_I_MODELID_RATIONS Then Return True
 	If $l_i_ModelID = $GC_I_MODELID_COMPASS Then Return True
 	If $l_i_Rarity = $GC_I_RARITY_GOLD Then Return True

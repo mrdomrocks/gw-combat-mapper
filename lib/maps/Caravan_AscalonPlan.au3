@@ -5,7 +5,7 @@
 ; Continuous portal spine (no planned resign breaks):
 ; - TOA -> BlackCurtain -> CursedLands -> NeboTerrace -> NorthKryta -> ScoundrelsRise
 ; - -> GriffonsMouth -> DeldrimorBowl -> AnvilRock -> IronHorseMine -> TravelersVale
-; - -> AscalonFoothills -> DiessaLowlands -> FlameTempleCorridor/DragonsGullet
+; - -> AscalonFoothills -> DiessaLowlands -> FlameTempleCorridor -> DragonsGullet
 ; - -> TheBreach -> OldAscalon -> RegentValley -> PockmarkFlats -> EasternFrontier
 ; Between maps: vanquished maps walk GoOutRoutes From->To portal paths; open maps farm
 ; CaravanAscalon_* then dest-aware Pathfinder. Combat stays on.
@@ -15,7 +15,7 @@
 ; Resign+TravelTo only as stall recovery when no portal hop can be made.
 ; Never mid-route TravelTo.
 
-Global Const $GC_I_ASCALON_CARAVAN_MAP_COUNT = 18
+Global Const $GC_I_ASCALON_CARAVAN_MAP_COUNT = 19
 
 ; Columns: map id, outpost id, transit, transit2, transit3, GoOut func name, unused, unused, label
 Global $g_a_AscalonCaravanPlan[$GC_I_ASCALON_CARAVAN_MAP_COUNT][9]
@@ -119,54 +119,61 @@ Func _Vanquisher_InitAscalonCaravanPlan()
     $g_a_AscalonCaravanPlan[11][5] = "GoOutDiessaLowlands"
     $g_a_AscalonCaravanPlan[11][8] = "DiessaLowlands"
 
-    ; Flame Temple Corridor + Dragon's Gullet share one combined vanquish route.
     $g_a_AscalonCaravanPlan[12][0] = $FlameTempleCorridor_Map
     $g_a_AscalonCaravanPlan[12][1] = 0
     $g_a_AscalonCaravanPlan[12][2] = $FlameTempleCorridor_Transit
-    $g_a_AscalonCaravanPlan[12][3] = $DragonsGullet_Map
+    $g_a_AscalonCaravanPlan[12][3] = 0
     $g_a_AscalonCaravanPlan[12][4] = 0
     $g_a_AscalonCaravanPlan[12][5] = "GoOutFlameTempleCorridor"
     $g_a_AscalonCaravanPlan[12][8] = "FlameTempleCorridor"
 
-    $g_a_AscalonCaravanPlan[13][0] = $TheBreach_Map
+    $g_a_AscalonCaravanPlan[13][0] = $DragonsGullet_Map
     $g_a_AscalonCaravanPlan[13][1] = 0
-    $g_a_AscalonCaravanPlan[13][2] = $TheBreach_Transit
-    $g_a_AscalonCaravanPlan[13][3] = $TheBreach_Transit2
-    $g_a_AscalonCaravanPlan[13][4] = $TheBreach_Transit3
-    $g_a_AscalonCaravanPlan[13][5] = "GoOutTheBreach"
-    $g_a_AscalonCaravanPlan[13][8] = "TheBreach"
+    $g_a_AscalonCaravanPlan[13][2] = $DragonsGullet_Transit
+    $g_a_AscalonCaravanPlan[13][3] = $DragonsGullet_Transit2
+    $g_a_AscalonCaravanPlan[13][4] = 0
+    $g_a_AscalonCaravanPlan[13][5] = "GoOutDragonsGullet"
+    $g_a_AscalonCaravanPlan[13][8] = "DragonsGullet"
 
-    $g_a_AscalonCaravanPlan[14][0] = $OldAscalon_Map
+    $g_a_AscalonCaravanPlan[14][0] = $TheBreach_Map
     $g_a_AscalonCaravanPlan[14][1] = 0
-    $g_a_AscalonCaravanPlan[14][2] = $OldAscalon_Transit
-    $g_a_AscalonCaravanPlan[14][3] = 0
-    $g_a_AscalonCaravanPlan[14][4] = 0
-    $g_a_AscalonCaravanPlan[14][5] = "GoOutOldAscalon"
-    $g_a_AscalonCaravanPlan[14][8] = "OldAscalon"
+    $g_a_AscalonCaravanPlan[14][2] = $TheBreach_Transit
+    $g_a_AscalonCaravanPlan[14][3] = $TheBreach_Transit2
+    $g_a_AscalonCaravanPlan[14][4] = $TheBreach_Transit3
+    $g_a_AscalonCaravanPlan[14][5] = "GoOutTheBreach"
+    $g_a_AscalonCaravanPlan[14][8] = "TheBreach"
 
-    $g_a_AscalonCaravanPlan[15][0] = $RegentValley_Map
+    $g_a_AscalonCaravanPlan[15][0] = $OldAscalon_Map
     $g_a_AscalonCaravanPlan[15][1] = 0
-    $g_a_AscalonCaravanPlan[15][2] = $RegentValley_Transit
+    $g_a_AscalonCaravanPlan[15][2] = $OldAscalon_Transit
     $g_a_AscalonCaravanPlan[15][3] = 0
     $g_a_AscalonCaravanPlan[15][4] = 0
-    $g_a_AscalonCaravanPlan[15][5] = "GoOutRegentValley"
-    $g_a_AscalonCaravanPlan[15][8] = "RegentValley"
+    $g_a_AscalonCaravanPlan[15][5] = "GoOutOldAscalon"
+    $g_a_AscalonCaravanPlan[15][8] = "OldAscalon"
 
-    $g_a_AscalonCaravanPlan[16][0] = $PockmarkFlats_Map
+    $g_a_AscalonCaravanPlan[16][0] = $RegentValley_Map
     $g_a_AscalonCaravanPlan[16][1] = 0
-    $g_a_AscalonCaravanPlan[16][2] = $PockmarkFlats_Transit
+    $g_a_AscalonCaravanPlan[16][2] = $RegentValley_Transit
     $g_a_AscalonCaravanPlan[16][3] = 0
     $g_a_AscalonCaravanPlan[16][4] = 0
-    $g_a_AscalonCaravanPlan[16][5] = "GoOutPockmarkFlats"
-    $g_a_AscalonCaravanPlan[16][8] = "PockmarkFlats"
+    $g_a_AscalonCaravanPlan[16][5] = "GoOutRegentValley"
+    $g_a_AscalonCaravanPlan[16][8] = "RegentValley"
 
-    $g_a_AscalonCaravanPlan[17][0] = $EasternFrontier_Map
+    $g_a_AscalonCaravanPlan[17][0] = $PockmarkFlats_Map
     $g_a_AscalonCaravanPlan[17][1] = 0
-    $g_a_AscalonCaravanPlan[17][2] = $EasternFrontier_Transit
+    $g_a_AscalonCaravanPlan[17][2] = $PockmarkFlats_Transit
     $g_a_AscalonCaravanPlan[17][3] = 0
     $g_a_AscalonCaravanPlan[17][4] = 0
-    $g_a_AscalonCaravanPlan[17][5] = "GoOutEasternFrontier"
-    $g_a_AscalonCaravanPlan[17][8] = "EasternFrontier"
+    $g_a_AscalonCaravanPlan[17][5] = "GoOutPockmarkFlats"
+    $g_a_AscalonCaravanPlan[17][8] = "PockmarkFlats"
+
+    $g_a_AscalonCaravanPlan[18][0] = $EasternFrontier_Map
+    $g_a_AscalonCaravanPlan[18][1] = 0
+    $g_a_AscalonCaravanPlan[18][2] = $EasternFrontier_Transit
+    $g_a_AscalonCaravanPlan[18][3] = 0
+    $g_a_AscalonCaravanPlan[18][4] = 0
+    $g_a_AscalonCaravanPlan[18][5] = "GoOutEasternFrontier"
+    $g_a_AscalonCaravanPlan[18][8] = "EasternFrontier"
 EndFunc
 
 Func _Vanquisher_IsAscalonCaravanEntryMap($iMapID, $iStage)
@@ -211,7 +218,7 @@ Func _Vanquisher_AscalonCaravanStageForCurrentMap()
 EndFunc
 
 Func _Vanquisher_AscalonCaravanStageScriptName($iStage)
-    Local $aScripts[18] = [ _
+    Local $aScripts[19] = [ _
             "CaravanAscalon_TheBlackCurtain", _
             "CaravanAscalon_CursedLands", _
             "CaravanAscalon_NeboTerrace", _
@@ -225,6 +232,7 @@ Func _Vanquisher_AscalonCaravanStageScriptName($iStage)
             "CaravanAscalon_AscalonFoothills", _
             "CaravanAscalon_DiessaLowlands", _
             "CaravanAscalon_FlameTempleCorridor", _
+            "CaravanAscalon_DragonsGullet", _
             "CaravanAscalon_TheBreach", _
             "CaravanAscalon_OldAscalon", _
             "CaravanAscalon_RegentValley", _
@@ -238,12 +246,7 @@ EndFunc
 Func _Vanquisher_AscalonCaravanIsStageHistoricallyVanquished($iStage)
 	_Vanquisher_InitAscalonCaravanPlan()
 	If $iStage < 0 Or $iStage >= $GC_I_ASCALON_CARAVAN_MAP_COUNT Then Return False
-	If Not VanquishCheck_IsMapHistoricallyVanquished(Number($g_a_AscalonCaravanPlan[$iStage][0])) Then Return False
-	; Combined FTC+DG stage: skip only when both vanquish titles are done.
-	If Number($g_a_AscalonCaravanPlan[$iStage][0]) = $FlameTempleCorridor_Map Then
-		If Not VanquishCheck_IsMapHistoricallyVanquished($DragonsGullet_Map) Then Return False
-	EndIf
-	Return True
+	Return VanquishCheck_IsMapHistoricallyVanquished(Number($g_a_AscalonCaravanPlan[$iStage][0]))
 EndFunc
 
 ; First stage from $iFromStage that is not marked vanquished by map scan; or map count if all done.

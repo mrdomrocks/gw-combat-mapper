@@ -5,6 +5,7 @@ coverage_route.csv
 *.log
 Thumbs.db
 Desktop.ini
+__pycache__/
 
 # GwAu3 is cloned separately (large + nested .git)
 vendor/GwAu3/

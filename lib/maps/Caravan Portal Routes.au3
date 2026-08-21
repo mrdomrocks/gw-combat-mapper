@@ -39,7 +39,7 @@ Global $aCursedLandsToNeboTerracePortalPath = [ _
     [-3922.9983, -8452.6201], _
     [-4242.1265, -9332.5967], _
     [-4696.7983, -11321.7871], _
-    [-3652.5930, -11737.5011]_
+    [-3652.5930, -11737.5011] _
 ]
 
 ; Nebo Terrace -> North Kryta Province
@@ -89,7 +89,7 @@ Global $aScoundrelsRiseToGriffonsMouthPortalPath = [ _
     [ 7589.6582,  5404.1543], _
     [ 7376.3022,  6617.8384], _
     [ 7864.0594,  8767.2698], _
-    [ 9464.7217,  9284.0576]_
+    [ 9464.7217,  9284.0576] _
 ]
 
 ; Griffons Mouth -> Deldrimor Bowl (recorded as ScoundrelsRiseToAnvilRock; coords are GM)

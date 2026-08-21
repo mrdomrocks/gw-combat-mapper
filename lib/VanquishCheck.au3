@@ -120,13 +120,8 @@ Func VanquishCheck_IsAreaVanquished()
 	Return False
 EndFunc
 
-; Flame Temple Corridor and Dragon's Gullet share one vanquish route. Clearing FTC
-; must not abort that walk before the connecting portal into DG.
+; Coverage / caravan skip-sweep: current map is historically vanquished or the
+; instance foe counter shows this area is done.
 Func VanquishCheck_IsCoverageVanquished()
-	Local $l_i_Map = Number(Map_GetMapID())
-	If $l_i_Map = $FlameTempleCorridor_Map Or $l_i_Map = $DragonsGullet_Map Then
-		Return VanquishCheck_IsMapHistoricallyVanquished($FlameTempleCorridor_Map) _
-			And VanquishCheck_IsMapHistoricallyVanquished($DragonsGullet_Map)
-	EndIf
 	Return VanquishCheck_IsAreaVanquished()
 EndFunc

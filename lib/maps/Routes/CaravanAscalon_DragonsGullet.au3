@@ -293,7 +293,9 @@ Global $aCaravanAscalon_DragonsGulletPath = [ _
     [4469.6667, -10887.3333], _ ; auto
     [4940.3333, -9741.6667], _ ; auto
     [5411.0000, -8596.0000], _
-    [6868.5, -8729.5], _ ; auto
+    [6415.92, -9032.61], _
+    [6701.08, -9107.46], _
+    [7513.54, -8985.23], _ ; auto
     [8326.0000, -8863.0000], _
     [9536, -8549.5], _ ; auto
     [10746.0000, -8236.0000], _
@@ -359,7 +361,7 @@ Global $aCaravanAscalon_DragonsGulletPath = [ _
     [-4577.0000,  -978.0000] _
 ]
 
-Global Const $GC_I_ROUTE_DragonsGullet_COUNT = 353
+Global Const $GC_I_ROUTE_DragonsGullet_COUNT = 355
 
 
 Func MapRoute_GetDragonsGullet(ByRef $a_a_X, ByRef $a_a_Y)

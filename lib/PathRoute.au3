@@ -254,14 +254,7 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 	Local $l_i_TypeOld = Map_GetInstanceInfo("Type")
 	Local $l_f_Reach = PathRoute_GetReachedDistance($a_s_Profile)
 	Local $l_a_Path = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile)
-	If Not IsArray($l_a_Path) Then
-		If $l_i_StartMap <> $FlameTempleCorridor_Map And $l_i_StartMap <> $DragonsGullet_Map Then Return False
-		Out("PathRoute: no mesh path on MapID=" & $l_i_StartMap & " — beelining toward FTC/DG dest")
-		Local $l_a_Beeline[1][2]
-		$l_a_Beeline[0][0] = $a_f_DestX
-		$l_a_Beeline[0][1] = $a_f_DestY
-		$l_a_Path = $l_a_Beeline
-	EndIf
+	If Not IsArray($l_a_Path) Then Return False
 
 	$g_f_PathRouteLastMoveX = 0
 	$g_f_PathRouteLastMoveY = 0
