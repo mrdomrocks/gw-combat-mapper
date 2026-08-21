@@ -195,6 +195,14 @@ Func MapTravel_NudgePortal($a_f_X, $a_f_Y, $a_i_BeforeMapID, $a_i_TimeoutMs = 20
 		SmartCast_EnsureReady(False)
 		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
 			MapTravel_PortalCombatTick()
+			If Combat_ShouldHoldMovement(MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut()) Then
+				If TimerDiff($l_h_Loot) >= 1000 Then
+					LootPickup_Sweep()
+					$l_h_Loot = TimerInit()
+				EndIf
+				Sleep(32)
+				ContinueLoop
+			EndIf
 			If TimerDiff($l_h_Loot) >= 1000 Then
 				LootPickup_Sweep()
 				$l_h_Loot = TimerInit()

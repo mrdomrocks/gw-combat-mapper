@@ -46,6 +46,7 @@ Func BotEngine_Start()
 	$g_s_SelectedTarget = GUICtrlRead($g_h_TargetCombo)
 	$g_b_CaravanSkipVanquished = GetChecked($g_h_SkipVanquishedCheckbox)
 	MapTravel_LoadConfig($GC_S_CONFIG)
+	Combat_LoadConfig($GC_S_CONFIG)
 	If $g_b_CombatLoggingEnabled Then CombatLogger_LoadConfig($GC_S_CONFIG)
 	LootPickup_LoadConfig($GC_S_CONFIG)
 
@@ -628,6 +629,7 @@ EndFunc
 
 Func RunCaravanSequence()
 	CaravanPlan_SetKind(MapCatalog_GetSequenceKind($g_s_SelectedTarget))
+	Combat_LoadConfig()
 	If $g_b_CombatLoggingEnabled Then CombatLogger_LoadConfig()
 	SmartCast_LoadConfig()
 	LootPickup_LoadConfig()
@@ -893,6 +895,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	If $g_b_SweepActive Then Return
 	$g_b_SweepActive = True
 
+	Combat_LoadConfig()
 	If $g_b_CombatLoggingEnabled Then CombatLogger_LoadConfig()
 	SmartCast_LoadConfig()
 	LootPickup_LoadConfig()
@@ -996,6 +999,11 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 			Local $l_b_Ok = PathRoute_MoveTo($l_f_X, $l_f_Y, $GC_S_PATHROUTE_PROFILE_COVERAGE, $g_f_AggroRange, _
 				$g_f_FightRangeOut, $g_i_FinisherMode, "BotEngine_Tick")
 
+			If Not Combat_WaitUntilClear($g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "BotEngine_Tick") Then
+				$l_b_MoveInterrupted = True
+				ExitLoop
+			EndIf
+
 			Local $l_f_DistAfter = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
 
 			If Not $l_b_Ok Then
@@ -1017,10 +1025,9 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 				Out("Pathfinder_MoveTo failed dist=" & Round($l_f_DistAfter) & " — will retry or skip.")
 			EndIf
 
-			Local $l_b_InCombat = False
-			If $g_b_CombatLoggingEnabled Then $l_b_InCombat = CombatLogger_IsCombatActive()
+			Local $l_b_InCombat = Combat_AnyFoesRemain($g_f_FightRangeOut)
 
-			If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
+			If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED And Not $l_b_InCombat Then
 				Out("Waypoint " & ($g_i_CoverageIndex + 1) & " reached (dist=" & Round($l_f_DistAfter) & ").")
 				Coverage_Advance()
 				Coverage_MarkWaypointReached()

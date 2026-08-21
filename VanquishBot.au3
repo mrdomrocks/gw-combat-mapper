@@ -9,6 +9,7 @@
 #include "lib\MapTravel.au3"
 #include "lib\Coverage.au3"
 #include "lib\SmartCast.au3"
+#include "lib\Combat.au3"
 #include "lib\VanquishCheck.au3"
 #include "lib\LootPickup.au3"
 #include "lib\CaravanGui.au3"

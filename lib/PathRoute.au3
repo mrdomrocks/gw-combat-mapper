@@ -1,5 +1,6 @@
 #include-once
 #include "maps\LocationsIDS.au3"
+#include "Combat.au3"
 
 ; Shared anchor-chain validation for vanquish routes and portal walks.
 ; Coordinate arrays define strategic waypoints; Pathfinder validates reachability.
@@ -269,6 +270,8 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 	Local $l_f_MoveX = $a_f_DestX
 	Local $l_f_MoveY = $a_f_DestY
 	Local $l_i_Layer = Number(Agent_GetAgentInfo(-2, "Plane"))
+	Local $l_b_WasHolding = False
+	Local $l_h_FoesClear = 0
 
 	PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_LastX, $l_f_LastY, $a_f_DestX, $a_f_DestY, _
 		$l_f_MoveX, $l_f_MoveY, $l_i_Layer, $l_f_Reach)
@@ -283,13 +286,34 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 
 		Local $l_f_Cx = Agent_GetAgentInfo(-2, "X")
 		Local $l_f_Cy = Agent_GetAgentInfo(-2, "Y")
-		If PathRoute_Distance($l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY) <= $l_f_Reach Then ExitLoop
+		Local $l_b_AtDest = PathRoute_Distance($l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY) <= $l_f_Reach
+		Local $l_b_HoldForCombat = False
+		Local $l_b_FoesRemain = False
 
 		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
 			UAI_Fight($l_f_Cx, $l_f_Cy, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher)
+			$l_b_HoldForCombat = Combat_ShouldHoldMovement($a_f_Aggro, $a_f_FightOut)
+			$l_b_FoesRemain = Combat_AnyFoesRemain($a_f_FightOut)
 		EndIf
 
-		If TimerDiff($l_h_Repath) >= $g_i_PathRoutePathUpdateInterval Then
+		If $l_b_AtDest And Not $l_b_FoesRemain Then
+			If $l_h_FoesClear = 0 Then
+				$l_h_FoesClear = TimerInit()
+			ElseIf TimerDiff($l_h_FoesClear) >= Combat_GetEndGraceMs() Then
+				ExitLoop
+			EndIf
+		Else
+			$l_h_FoesClear = 0
+		EndIf
+
+		If $l_b_HoldForCombat And Not $l_b_WasHolding Then
+			Agent_CancelAction()
+			$g_f_PathRouteLastMoveX = 0
+			$g_f_PathRouteLastMoveY = 0
+		EndIf
+		$l_b_WasHolding = $l_b_HoldForCombat
+
+		If Not $l_b_HoldForCombat And TimerDiff($l_h_Repath) >= $g_i_PathRoutePathUpdateInterval Then
 			Local $l_a_Repath = PathRoute_BuildMovePath($a_f_DestX, $a_f_DestY, $a_s_Profile, $l_f_Cx, $l_f_Cy)
 			If IsArray($l_a_Repath) Then
 				$l_a_Path = $l_a_Repath
@@ -298,11 +322,13 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 			$l_h_Repath = TimerInit()
 		EndIf
 
-		PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY, _
-			$l_f_MoveX, $l_f_MoveY, $l_i_Layer, $l_f_Reach)
-		PathRoute_IssueMove($l_f_MoveX, $l_f_MoveY, $l_i_Layer)
+		If Not $l_b_HoldForCombat Then
+			PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY, _
+				$l_f_MoveX, $l_f_MoveY, $l_i_Layer, $l_f_Reach)
+			PathRoute_IssueMove($l_f_MoveX, $l_f_MoveY, $l_i_Layer)
+		EndIf
 
-		If PathRoute_Distance($l_f_Cx, $l_f_Cy, $l_f_LastX, $l_f_LastY) < $GC_I_PATHROUTE_STUCK_DIST Then
+		If Not $l_b_HoldForCombat And PathRoute_Distance($l_f_Cx, $l_f_Cy, $l_f_LastX, $l_f_LastY) < $GC_I_PATHROUTE_STUCK_DIST Then
 			If TimerDiff($l_h_Stuck) >= $GC_I_PATHROUTE_STUCK_MS Then
 				$l_i_StuckStrikes += 1
 				If $l_i_StuckStrikes >= $GC_I_PATHROUTE_STUCK_STRIKES Then

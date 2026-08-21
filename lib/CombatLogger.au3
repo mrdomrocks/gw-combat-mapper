@@ -1,4 +1,5 @@
 #include-once
+#include "Combat.au3"
 
 ; Combat coordinate logger: one player X/Y at combat start and one at combat end.
 ; Does not log per-enemy positions.
@@ -6,10 +7,7 @@
 Global $g_i_LoggedCount = 0
 Global $g_s_LogFile = ""
 Global $g_s_LogDirectory = "logs"
-Global $g_f_AggroRange = 1320
-Global $g_f_FightRangeOut = 3500
 Global $g_f_CombatRadius = 500
-Global $g_i_CombatEndGraceMs = 1500
 
 Global $g_b_InCombat = False
 Global $g_h_CombatClearTimer = 0
@@ -23,17 +21,12 @@ Global $g_i_MapCoordLoggedCount = 0
 Func CombatLogger_LoadConfig($a_s_ConfigPath = "")
 	If $a_s_ConfigPath = "" Then $a_s_ConfigPath = @ScriptDir & "\config.ini"
 
+	Combat_LoadConfig($a_s_ConfigPath)
 	$g_s_LogDirectory = IniRead($a_s_ConfigPath, "Log", "Directory", "logs")
 	$g_s_CaravanLogStartMap = IniRead($a_s_ConfigPath, "Log", "CaravanLogStartMap", "DeldrimorBowl")
-	$g_f_AggroRange = Number(IniRead($a_s_ConfigPath, "Combat", "AggroRange", "1320"))
-	$g_f_FightRangeOut = Number(IniRead($a_s_ConfigPath, "Combat", "FightRangeOut", "3500"))
 	$g_f_CombatRadius = Number(IniRead($a_s_ConfigPath, "Combat", "CombatRadius", "500"))
-	$g_i_CombatEndGraceMs = Number(IniRead($a_s_ConfigPath, "Combat", "CombatEndGraceMs", "1500"))
 
-	If $g_f_AggroRange <= 0 Then $g_f_AggroRange = 1320
-	If $g_f_FightRangeOut <= 0 Then $g_f_FightRangeOut = 3500
 	If $g_f_CombatRadius <= 0 Then $g_f_CombatRadius = 500
-	If $g_i_CombatEndGraceMs < 0 Then $g_i_CombatEndGraceMs = 1500
 	If $g_s_CaravanLogStartMap = "" Then $g_s_CaravanLogStartMap = "DeldrimorBowl"
 EndFunc
 
@@ -96,31 +89,7 @@ EndFunc
 
 ; True if any living enemy is currently engaging us.
 Func CombatLogger_IsCombatActive()
-	Local $l_b_PlayerAttacking = Agent_GetAgentInfo(-2, "IsAttacking")
-	Local $l_i_CurrentTarget = Agent_GetCurrentTarget()
-	Local $l_a_Agents = Agent_GetAgentArray(0xDB)
-
-	If Not IsArray($l_a_Agents) Or $l_a_Agents[0] < 1 Then Return False
-
-	For $i = 1 To $l_a_Agents[0]
-		Local $l_p_Agent = $l_a_Agents[$i]
-		If $l_p_Agent = 0 Then ContinueLoop
-
-		Local $l_i_ID = Agent_GetAgentInfo($l_p_Agent, "ID")
-		If $l_i_ID = 0 Or $l_i_ID = Agent_GetMyID() Then ContinueLoop
-		If Agent_GetAgentInfo($l_p_Agent, "Allegiance") <> 3 Then ContinueLoop
-		If Agent_GetAgentInfo($l_p_Agent, "HP") <= 0 Then ContinueLoop
-		If Agent_GetAgentInfo($l_p_Agent, "IsDead") Then ContinueLoop
-
-		Local $l_f_Dist = Agent_GetDistance($l_p_Agent, -2)
-		If $l_f_Dist > $g_f_FightRangeOut Then ContinueLoop
-
-		If $l_i_CurrentTarget <> 0 And $l_i_ID = $l_i_CurrentTarget Then Return True
-		If $l_b_PlayerAttacking And $l_f_Dist <= $g_f_AggroRange Then Return True
-		If Agent_GetAgentInfo($l_p_Agent, "IsAttacking") And $l_f_Dist <= $g_f_AggroRange Then Return True
-	Next
-
-	Return False
+	Return Combat_IsEngaged()
 EndFunc
 
 ; Pathfinder_MoveTo CallFunc — log player X/Y once at combat start and once at combat end.
