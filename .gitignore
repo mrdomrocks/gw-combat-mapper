@@ -17,4 +17,5 @@ scripts/
 build/
 dist/
 lib/maps/Generated/
+lib/maps/generate_navmesh_coords.py
 *.spec
