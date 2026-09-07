@@ -110,6 +110,27 @@ Func MapCatalog_GetComboString()
 		"EOTN The Far Shiverpeaks|EOTN The Charr Homelands|EOTN The Tarnished Coast"
 EndFunc
 
+Func MapCatalog_GetLongestComboName()
+	Local $l_s_Best = "Current Map"
+	Local $l_a_Parts = StringSplit(MapCatalog_GetComboString(), "|")
+	Local $i
+	If IsArray($l_a_Parts) Then
+		For $i = 1 To $l_a_Parts[0]
+			If StringLen($l_a_Parts[$i]) > StringLen($l_s_Best) Then $l_s_Best = $l_a_Parts[$i]
+		Next
+	EndIf
+	Return $l_s_Best
+EndFunc
+
+Func MapCatalog_GetLongestMapTitle()
+	Local $l_s_Best = ""
+	Local $i
+	For $i = 0 To $g_i_MapTitleCount - 1
+		If StringLen($g_as_MapTitles[$i]) > StringLen($l_s_Best) Then $l_s_Best = $g_as_MapTitles[$i]
+	Next
+	Return $l_s_Best
+EndFunc
+
 Func MapCatalog_LocationsPrefix($a_s_Title)
 	Switch $a_s_Title
 		Case "IceDome"

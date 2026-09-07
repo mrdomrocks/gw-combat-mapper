@@ -23,6 +23,8 @@ Global Const $GC_A_HERO_IDS[] = [ _
 
 Global $g_s_HeroList = ""
 Global $g_i_HeroDropdownWidth = 160
+Global Const $GC_S_WIDEST_CHAR_NAME = "Masters of Whispers"
+Global Const $GC_I_HERO_COMBO_EXTRA_CHARS = 2
 Global Const $GC_I_HERO_TEAM4_SLOTS = 3
 Global Const $GC_I_HERO_TEAM6_SLOTS = 5
 Global Const $GC_I_HERO_TEAM8_SLOTS = 7
@@ -30,10 +32,8 @@ Global $g_idComboTeam4[3]
 Global $g_idComboTeam6[5]
 Global $g_idComboTeam8[7]
 Global $g_sLastHeroTeamState = ""
-Global Const $GC_I_HERO_COMBO_WIDTH = 160
 Global Const $GC_I_HERO_LABEL_WIDTH = 22
 Global Const $GC_I_HERO_GROUP_PAD = 8
-Global Const $GC_I_HERO_TEAM_GROUP_WIDTH = 198
 Global Const $GC_I_HERO_TOP_ROW_HEIGHT = 132
 Global Const $GC_I_HERO_TEAM8_HEIGHT = 108
 Global Const $GC_I_HERO_TEAM_GAP = 8
@@ -63,14 +63,22 @@ Func HeroTeam_BuildList()
 	Return $l_s
 EndFunc
 
+Func HeroTeam_ComboExtraWidth()
+	Return $GC_I_HERO_COMBO_EXTRA_CHARS * 8
+EndFunc
+
 Func HeroTeam_EstimateDropdownWidth()
-	Local $l_i_Max = 140
-	Local $i
-	For $i = 0 To UBound($GC_A_HERO_NAMES) - 1
-		Local $l_i_W = StringLen($GC_A_HERO_NAMES[$i]) * 8 + 24
-		If $l_i_W > $l_i_Max Then $l_i_Max = $l_i_W
-	Next
-	Return $l_i_Max
+	Return CaravanGui_EstimateComboWidth($GC_S_WIDEST_CHAR_NAME) + HeroTeam_ComboExtraWidth()
+EndFunc
+
+Func HeroTeam_ApplyMeasuredDropdownWidth($a_h_MeasureCtrl)
+	Local $l_i_W = CaravanGui_ComboWidthForText($a_h_MeasureCtrl, $GC_S_WIDEST_CHAR_NAME) + HeroTeam_ComboExtraWidth()
+	If $l_i_W > 0 Then $g_i_HeroDropdownWidth = $l_i_W
+	Return $g_i_HeroDropdownWidth
+EndFunc
+
+Func HeroTeam_GroupWidth()
+	Return $GC_I_HERO_GROUP_PAD + $GC_I_HERO_LABEL_WIDTH + $g_i_HeroDropdownWidth + $GC_I_HERO_GROUP_PAD
 EndFunc
 
 Func HeroTeam_GetIdByName($a_s_Name)
@@ -88,7 +96,7 @@ Func HeroTeam_PanelLeft($a_i_ListLeft, $a_i_ListWidth)
 EndFunc
 
 Func HeroTeam_PanelWidth()
-	Return $GC_I_HERO_TEAM_GROUP_WIDTH * 2 + $GC_I_HERO_TEAM_GAP
+	Return HeroTeam_GroupWidth() * 2 + $GC_I_HERO_TEAM_GAP
 EndFunc
 
 Func HeroTeam_SlotLabelX($a_i_GroupX)
@@ -109,7 +117,10 @@ EndFunc
 
 Func HeroTeam_PlaceSlot($a_id_Label, $a_id_Combo, $a_i_GroupX, $a_i_GroupY, $a_i_Index)
 	If $a_id_Label <> 0 Then GUICtrlSetPos($a_id_Label, HeroTeam_SlotLabelX($a_i_GroupX), HeroTeam_SlotLabelY($a_i_GroupY, $a_i_Index), $GC_I_HERO_LABEL_WIDTH, 16)
-	If $a_id_Combo <> 0 Then GUICtrlSetPos($a_id_Combo, HeroTeam_SlotComboX($a_i_GroupX), HeroTeam_SlotComboY($a_i_GroupY, $a_i_Index), $GC_I_HERO_COMBO_WIDTH, 22)
+	If $a_id_Combo <> 0 Then
+		GUICtrlSetPos($a_id_Combo, HeroTeam_SlotComboX($a_i_GroupX), HeroTeam_SlotComboY($a_i_GroupY, $a_i_Index), $g_i_HeroDropdownWidth, 22)
+		GUICtrlSendMsg($a_id_Combo, $CB_SETDROPPEDWIDTH, $g_i_HeroDropdownWidth, 0)
+	EndIf
 EndFunc
 
 Func HeroTeam_MarkPartySize(ByRef $a_a_Sizes, $a_i_Size)
@@ -397,15 +408,16 @@ EndFunc
 
 Func HeroTeam_RepositionLayout($a_i_ListLeft, $a_i_ListTop, $a_i_ListWidth)
 	If Not $g_b_HeroGuiCreated Then Return
+	Local $iGroupW = HeroTeam_GroupWidth()
 	Local $iTeam4X = HeroTeam_PanelLeft($a_i_ListLeft, $a_i_ListWidth)
-	Local $iTeam6X = $iTeam4X + $GC_I_HERO_TEAM_GROUP_WIDTH + $GC_I_HERO_TEAM_GAP
+	Local $iTeam6X = $iTeam4X + $iGroupW + $GC_I_HERO_TEAM_GAP
 	Local $iTeam8X = $iTeam4X
 	Local $iTeam8Top = $a_i_ListTop + $GC_I_HERO_TOP_ROW_HEIGHT + $GC_I_HERO_TEAM_GAP
 	Local $iTeam8Width = HeroTeam_PanelWidth()
 	Local $i, $iColX, $iRow
 
-	If $g_h_Team4Group Then GUICtrlSetPos($g_h_Team4Group, $iTeam4X, $a_i_ListTop, $GC_I_HERO_TEAM_GROUP_WIDTH, $GC_I_HERO_TOP_ROW_HEIGHT)
-	If $g_h_Team6Group Then GUICtrlSetPos($g_h_Team6Group, $iTeam6X, $a_i_ListTop, $GC_I_HERO_TEAM_GROUP_WIDTH, $GC_I_HERO_TOP_ROW_HEIGHT)
+	If $g_h_Team4Group Then GUICtrlSetPos($g_h_Team4Group, $iTeam4X, $a_i_ListTop, $iGroupW, $GC_I_HERO_TOP_ROW_HEIGHT)
+	If $g_h_Team6Group Then GUICtrlSetPos($g_h_Team6Group, $iTeam6X, $a_i_ListTop, $iGroupW, $GC_I_HERO_TOP_ROW_HEIGHT)
 	If $g_h_Team8Group Then GUICtrlSetPos($g_h_Team8Group, $iTeam8X, $iTeam8Top, $iTeam8Width, $GC_I_HERO_TEAM8_HEIGHT)
 
 	For $i = 0 To $GC_I_HERO_TEAM4_SLOTS - 1
@@ -434,19 +446,20 @@ Func HeroTeam_CreateGuiControls($a_i_ListLeft, $a_i_ListTop, $a_i_ListWidth, $a_
 	Local $i
 	$g_i_HeroListTop = $a_i_ListTop
 
-	$g_h_Team4Group = GUICtrlCreateGroup("Team 4", 0, 0, $GC_I_HERO_TEAM_GROUP_WIDTH, $GC_I_HERO_TOP_ROW_HEIGHT)
+	Local $iGroupW = HeroTeam_GroupWidth()
+	$g_h_Team4Group = GUICtrlCreateGroup("Team 4", 0, 0, $iGroupW, $GC_I_HERO_TOP_ROW_HEIGHT)
 	For $i = 0 To $GC_I_HERO_TEAM4_SLOTS - 1
 		$g_aTeam4LabelIds[$i] = GUICtrlCreateLabel("H" & ($i + 1) & ":", 0, 0, $GC_I_HERO_LABEL_WIDTH, 16)
-		$g_idComboTeam4[$i] = GUICtrlCreateCombo("", 0, 0, $GC_I_HERO_COMBO_WIDTH, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
+		$g_idComboTeam4[$i] = GUICtrlCreateCombo("", 0, 0, $g_i_HeroDropdownWidth, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
 		GUICtrlSetData($g_idComboTeam4[$i], $g_s_HeroList)
 		GUICtrlSendMsg($g_idComboTeam4[$i], $CB_SETDROPPEDWIDTH, $g_i_HeroDropdownWidth, 0)
 	Next
 	GUICtrlCreateGroup("", -99, -99, 1, 1)
 
-	$g_h_Team6Group = GUICtrlCreateGroup("Team 6", 0, 0, $GC_I_HERO_TEAM_GROUP_WIDTH, $GC_I_HERO_TOP_ROW_HEIGHT)
+	$g_h_Team6Group = GUICtrlCreateGroup("Team 6", 0, 0, $iGroupW, $GC_I_HERO_TOP_ROW_HEIGHT)
 	For $i = 0 To $GC_I_HERO_TEAM6_SLOTS - 1
 		$g_aTeam6LabelIds[$i] = GUICtrlCreateLabel("H" & ($i + 1) & ":", 0, 0, $GC_I_HERO_LABEL_WIDTH, 16)
-		$g_idComboTeam6[$i] = GUICtrlCreateCombo("", 0, 0, $GC_I_HERO_COMBO_WIDTH, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
+		$g_idComboTeam6[$i] = GUICtrlCreateCombo("", 0, 0, $g_i_HeroDropdownWidth, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
 		GUICtrlSetData($g_idComboTeam6[$i], $g_s_HeroList)
 		GUICtrlSendMsg($g_idComboTeam6[$i], $CB_SETDROPPEDWIDTH, $g_i_HeroDropdownWidth, 0)
 	Next
@@ -455,7 +468,7 @@ Func HeroTeam_CreateGuiControls($a_i_ListLeft, $a_i_ListTop, $a_i_ListWidth, $a_
 	$g_h_Team8Group = GUICtrlCreateGroup("Team 8", 0, 0, HeroTeam_PanelWidth(), $GC_I_HERO_TEAM8_HEIGHT)
 	For $i = 0 To $GC_I_HERO_TEAM8_SLOTS - 1
 		$g_aTeam8LabelIds[$i] = GUICtrlCreateLabel("H" & ($i + 1) & ":", 0, 0, $GC_I_HERO_LABEL_WIDTH, 16)
-		$g_idComboTeam8[$i] = GUICtrlCreateCombo("", 0, 0, $GC_I_HERO_COMBO_WIDTH, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
+		$g_idComboTeam8[$i] = GUICtrlCreateCombo("", 0, 0, $g_i_HeroDropdownWidth, 22, BitOR($CBS_DROPDOWNLIST, $WS_VSCROLL))
 		GUICtrlSetData($g_idComboTeam8[$i], $g_s_HeroList)
 		GUICtrlSendMsg($g_idComboTeam8[$i], $CB_SETDROPPEDWIDTH, $g_i_HeroDropdownWidth, 0)
 	Next

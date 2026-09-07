@@ -138,6 +138,30 @@ Func CaravanGui_TextWidth($a_h_Ctrl, $a_s_Text)
 	Return DllStructGetData($tSize, "X")
 EndFunc
 
+Func CaravanGui_EstimateComboWidth($a_s_Text)
+	Return StringLen($a_s_Text) * 8 + 28
+EndFunc
+
+Func CaravanGui_ComboWidthForText($a_h_Ctrl, $a_s_Text)
+	Local $l_i_Est = CaravanGui_EstimateComboWidth($a_s_Text)
+	If $a_h_Ctrl = 0 Then Return $l_i_Est
+	Local $l_i_W = CaravanGui_TextWidth($a_h_Ctrl, $a_s_Text) + 28
+	If $l_i_W < 80 Then Return $l_i_Est
+	Return $l_i_W
+EndFunc
+
+Func CaravanGui_EstimateListWidthFromCatalog()
+	Local $l_i_W = StringLen(MapCatalog_GetLongestMapTitle()) * 7 + 28
+	If $l_i_W < 160 Then $l_i_W = 160
+	Return $l_i_W
+EndFunc
+
+Func CaravanGui_MeasureStableListWidth($a_h_Ctrl)
+	Local $l_i_W = CaravanGui_TextWidth($a_h_Ctrl, MapCatalog_GetLongestMapTitle()) + 28
+	If $l_i_W < 160 Then $l_i_W = 160
+	Return $l_i_W
+EndFunc
+
 Func CaravanGui_MeasureListWidth($a_i_Padding = 24)
 	Local $l_i_Max = 80
 	Local $i
