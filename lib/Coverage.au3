@@ -19,8 +19,12 @@ Global $g_f_BoundPad = 15000
 Global Const $GC_S_COVERAGE_PROGRESS = @ScriptDir & "\coverage_progress.ini"
 Global Const $GC_S_COVERAGE_ROUTE = @ScriptDir & "\coverage_route.csv"
 Global Const $GC_F_COVERAGE_WAYPOINT_REACHED = 400
-; Extra full-route walks after the initial vanquish pass (stop early if the area completes).
+; Extra full-route walks after the initial vanquish pass (caravan leftover-check count).
+; Keep walking after that until the area is vanquished, up to MAX extra passes.
 Global Const $GC_I_VANQUISH_ROUTE_REPEATS = 2
+Global Const $GC_I_VANQUISH_ROUTE_MAX_REPEATS = 8
+; Stay this far from the last vanquish coordinate so the bot does not walk into an exit portal.
+Global Const $GC_F_COVERAGE_VANQUISH_END_REACH = 1200
 
 Global $g_b_CoverageIsVanquishRoute = False
 Global $g_i_CoverageRepeatPass = 0
@@ -281,7 +285,8 @@ Func Coverage_BuildRoute($a_b_Verbose = True)
 				Coverage_SaveRoute()
 				Coverage_SaveProgress()
 				If $a_b_Verbose Then Out("Map route for " & $g_s_CoverageMapTitle & ": " & $l_i_RouteCount & _
-					" waypoints (vanquish path, up to " & $GC_I_VANQUISH_ROUTE_REPEATS & " extra passes if still open)")
+					" waypoints (vanquish path, " & $GC_I_VANQUISH_ROUTE_REPEATS & _
+					" leftover-check repeats then until vanquish)")
 				Return True
 			EndIf
 		ElseIf $a_b_Verbose Then
@@ -409,7 +414,7 @@ Func Coverage_TryResume($a_b_Verbose = True)
 	$g_b_CoverageIsVanquishRoute = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "IsVanquishRoute", "0")) <> 0
 	$g_i_CoverageRepeatPass = Number(IniRead($GC_S_COVERAGE_PROGRESS, "Progress", "RepeatPass", "0"))
 	If $g_i_CoverageRepeatPass < 0 Then $g_i_CoverageRepeatPass = 0
-	If $g_i_CoverageRepeatPass > $GC_I_VANQUISH_ROUTE_REPEATS Then $g_i_CoverageRepeatPass = $GC_I_VANQUISH_ROUTE_REPEATS
+	If $g_i_CoverageRepeatPass > $GC_I_VANQUISH_ROUTE_MAX_REPEATS Then $g_i_CoverageRepeatPass = $GC_I_VANQUISH_ROUTE_MAX_REPEATS
 	$g_b_CoverageHoldSkipPassed = ($g_i_CoverageRepeatPass > 0 And $g_i_CoverageIndex = 0)
 
 	If $a_b_Verbose Then Out("Resuming coverage at " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix())
@@ -429,6 +434,35 @@ Func Coverage_GetCurrentPoint(ByRef $a_f_X, ByRef $a_f_Y)
 	Return True
 EndFunc
 
+; Out-of-combat look-ahead: one MoveTo covers this many recorded waypoints.
+Func Coverage_FindChainEndIndex()
+	If $g_i_CoverageCount < 1 Then Return 0
+	If $g_i_CoverageIndex < 0 Then Return 0
+	If $g_i_CoverageIndex >= $g_i_CoverageCount Then Return $g_i_CoverageCount - 1
+	Local $l_i_Count = $g_i_CoverageCount
+	If $g_b_CoverageIsVanquishRoute And $l_i_Count >= 2 Then $l_i_Count -= 1
+	If $g_i_CoverageIndex >= $l_i_Count Then Return $g_i_CoverageCount - 1
+	Return PathRoute_FindChainEndIndex($g_a_CoverageX, $g_a_CoverageY, $g_i_CoverageIndex, _
+		$l_i_Count, $g_f_PathRouteClickAhead, $GC_F_PATHROUTE_CHAIN_WAYPOINT_DIST)
+EndFunc
+
+Func Coverage_GetPointAt(ByRef $a_f_X, ByRef $a_f_Y, $a_i_Index)
+	If $a_i_Index < 0 Or $a_i_Index >= $g_i_CoverageCount Then Return False
+	$a_f_X = $g_a_CoverageX[$a_i_Index]
+	$a_f_Y = $g_a_CoverageY[$a_i_Index]
+	Return True
+EndFunc
+
+; Advance through a finished chain set (inclusive).
+Func Coverage_AdvanceThrough($a_i_EndIndex)
+	If $a_i_EndIndex < $g_i_CoverageIndex Then Return
+	While $g_i_CoverageIndex <= $a_i_EndIndex And $g_i_CoverageIndex < $g_i_CoverageCount
+		$g_i_CoverageIndex += 1
+	WEnd
+	Coverage_SaveProgress()
+	Coverage_MarkWaypointReached()
+EndFunc
+
 Func Coverage_Advance()
 	$g_i_CoverageIndex += 1
 	Coverage_SaveProgress()
@@ -446,7 +480,23 @@ EndFunc
 Func Coverage_CanStartVanquishRepeat()
 	If Not $g_b_CoverageIsVanquishRoute Then Return False
 	If $g_i_CoverageCount < 1 Then Return False
-	Return $g_i_CoverageRepeatPass < $GC_I_VANQUISH_ROUTE_REPEATS
+	If $g_i_CoverageRepeatPass >= $GC_I_VANQUISH_ROUTE_MAX_REPEATS Then Return False
+	; Caravan-style leftover checks first, then keep looping while foes remain.
+	If $g_i_CoverageRepeatPass < $GC_I_VANQUISH_ROUTE_REPEATS Then Return True
+	Return Not VanquishCheck_IsCoverageVanquished()
+EndFunc
+
+; Last recorded vanquish coordinate is often an exit portal — do not walk into it.
+Func Coverage_IsVanquishExitIndex($a_i_Index)
+	If Not $g_b_CoverageIsVanquishRoute Then Return False
+	If $g_i_CoverageCount < 2 Then Return False
+	Return $a_i_Index >= $g_i_CoverageCount - 1
+EndFunc
+
+Func Coverage_GetReachedDistance($a_i_Index = -1)
+	If $a_i_Index < 0 Then $a_i_Index = $g_i_CoverageIndex
+	If Coverage_IsVanquishExitIndex($a_i_Index) Then Return $GC_F_COVERAGE_VANQUISH_END_REACH
+	Return $GC_F_COVERAGE_WAYPOINT_REACHED
 EndFunc
 
 Func Coverage_StartVanquishRepeat()
@@ -458,5 +508,8 @@ EndFunc
 
 Func Coverage_PassLogSuffix()
 	If Not $g_b_CoverageIsVanquishRoute Or $g_i_CoverageRepeatPass < 1 Then Return ""
-	Return " (vanquish repeat " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & ")"
+	If $g_i_CoverageRepeatPass <= $GC_I_VANQUISH_ROUTE_REPEATS Then
+		Return " (vanquish repeat " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & ")"
+	EndIf
+	Return " (vanquish repeat " & $g_i_CoverageRepeatPass & ", until complete)"
 EndFunc

@@ -1,13 +1,15 @@
 #RequireAdmin
 #NoTrayIcon
 
-#include "vendor\GwAu3\API\_GwAu3.au3"
+#include "..\..\API\_GwAu3.au3"
+#include "lib\EnsureConfig.au3"
 #include "lib\maps\LocationsIDS.au3"
 #include "lib\CaravanPlan.au3"
 #include "lib\maps\GoOutRoutes.au3"
 #include "lib\MapCatalog.au3"
 #include "lib\MapTravel.au3"
 #include "lib\Coverage.au3"
+#include "lib\CombatLogger.au3"
 #include "lib\SmartCast.au3"
 #include "lib\Combat.au3"
 #include "lib\VanquishCheck.au3"
@@ -16,11 +18,13 @@
 #include "lib\HeroTeam.au3"
 #include "lib\BotEngine.au3"
 
-$DLL_PATH = @ScriptDir & "\vendor\GwAu3\API\Plugins\Pathfinder\GWPathfinder.dll"
+$DLL_PATH = @ScriptDir & "\..\..\API\Plugins\Pathfinder\GWPathfinder.dll"
 
 Global Const $GC_B_LOAD_LOGGED_CHARS = True
 Global Const $GC_S_BOT_TITLE = "Guild Wars Vanquish Bot"
 Global Const $GC_S_CONFIG = @ScriptDir & "\config.ini"
+
+EnsureConfig_CopyIfMissing()
 
 Global $g_b_CombatLoggingEnabled = False
 Global $g_b_HeroTeamEnabled = True
@@ -96,8 +100,8 @@ GUICtrlSetState($g_h_OnTopCheckbox, $GUI_CHECKED)
 GUICtrlSetOnEvent($g_h_OnTopCheckbox, "GuiButtonHandler")
 
 $g_h_DebugCheckbox = GUICtrlCreateCheckbox("Debug", 278, 27, 50, 24)
-GUICtrlSetState($g_h_DebugCheckbox, $GUI_CHECKED)
 GUICtrlSetOnEvent($g_h_DebugCheckbox, "GuiButtonHandler")
+Log_SetDebugMode(False)
 
 $g_h_HardModeCheckbox = GUICtrlCreateCheckbox("Hard Mode", 330, 27, 78, 24)
 If Number(IniRead($GC_S_CONFIG, "Travel", "HardMode", "1")) <> 0 Then
@@ -145,7 +149,7 @@ Else
 	GUICtrlSetState($g_h_SkipVanquishedCheckbox, $GUI_UNCHECKED)
 EndIf
 
-Global $g_h_CaravanHintLabel = GUICtrlCreateLabel("Selected maps are farmed; unselected maps are skipped.", $GC_I_GUI_INNER, $GC_I_GUI_HINT_TOP, $g_i_GuiListWidth, $GC_I_GUI_HINT_HEIGHT)
+Global $g_h_CaravanHintLabel = GUICtrlCreateLabel("Selected maps are farmed; unselected maps are portal transit only.", $GC_I_GUI_INNER, $GC_I_GUI_HINT_TOP, $g_i_GuiListWidth, $GC_I_GUI_HINT_HEIGHT)
 
 AdLibRegister("VanquishBot_PollGui", 50)
 CaravanGui_Refresh()

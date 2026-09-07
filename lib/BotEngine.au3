@@ -222,7 +222,7 @@ Func BotEngine_GetTOAKrytaSpinePipe($a_s_Pipe)
 	Return $l_s
 EndFunc
 
-; Droknar's Forge spine maps in farm order (Talus -> Snake -> Dreadnought -> Lornar).
+; Southern Shiverpeaks spine in farm order (Talus from Ice Caves, then Camp Rankor -> Snake -> Dreadnought -> Lornar).
 Func BotEngine_GetSouthernShiverpeaksSpinePipe($a_s_Pipe)
 	Local Const $l_as_Spine[4] = ["TalusChute", "SnakeDance", "DreadnoughtsDrift", "LornarsPass"]
 	Local $l_s = ""
@@ -405,12 +405,12 @@ Func RunTOAKrytaSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 	Return True
 EndFunc
 
-; Enter Droknar's Forge once, vanquish each selected spine map in order, portal between them.
+; Talus from Ice Caves of Sorrow (ends at Camp Rankor); after that vanquish, TravelTo Camp Rankor and portal Snake -> Dreadnought -> Lornar.
 Func RunSouthernShiverpeaksSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 	Local $l_a = StringSplit($a_s_SpinePipe, "|")
 	If Not IsArray($l_a) Or $l_a[0] < 1 Then Return False
 
-	Out("=== Droknar's Forge Southern Shiverpeaks spine: " & $a_s_SpinePipe & " ===")
+	Out("=== Southern Shiverpeaks spine: " & $a_s_SpinePipe & " ===")
 	Local $i, $l_b_First = True
 	For $i = 1 To $l_a[0]
 		If $g_b_StopRequested Or Not $g_b_BotRunning Then Return False
@@ -424,7 +424,7 @@ Func RunSouthernShiverpeaksSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 			EndIf
 		EndIf
 
-		If $l_b_First Then
+		If $l_b_First Or MapTravel_ShouldTravelToCampRankor($l_s_Title) Then
 			If Not MapTravel_EnterTitle($l_s_Title) Then
 				Out("Could not enter " & $l_s_Title)
 				If Not $a_b_KeepRunning Then
@@ -449,22 +449,15 @@ Func RunSouthernShiverpeaksSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 	Return True
 EndFunc
 
-; Enter Ice Caves of Sorrow once, vanquish each selected spine map in order, portal between them.
+; IceDome / Frozen Forest / Ice Floe each TravelTo their own outpost, then vanquish.
+; After Ice Dome, Frozen Forest portals from the Ice Dome door instead of Iron Mines.
 Func RunIceCavesSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 	Local $l_a = StringSplit($a_s_SpinePipe, "|")
 	If Not IsArray($l_a) Or $l_a[0] < 1 Then Return False
 
-	Out("=== Ice Caves of Sorrow spine: " & $a_s_SpinePipe & " ===")
-	If Not MapTravel_TravelToIceCavesOfSorrow() Then
-		Out("Could not map travel to Ice Caves of Sorrow.")
-		If Not $a_b_KeepRunning Then
-			$g_b_BotRunning = False
-			BotEngine_SetIdleUiState()
-		EndIf
-		Return False
-	EndIf
+	Out("=== Southern ice maps: " & $a_s_SpinePipe & " ===")
 
-	Local $i, $l_b_First = True
+	Local $i
 	For $i = 1 To $l_a[0]
 		If $g_b_StopRequested Or Not $g_b_BotRunning Then Return False
 		Local $l_s_Title = StringStripWS($l_a[$i], 3)
@@ -477,26 +470,14 @@ Func RunIceCavesSpineChain($a_s_SpinePipe, $a_b_KeepRunning = False)
 			EndIf
 		EndIf
 
-		If $l_b_First Then
-			MapTravel_EnsureHardMode()
-			If Not MapTravel_EnterTitle($l_s_Title, 8, False) Then
-				Out("Could not enter " & $l_s_Title & " from Ice Caves of Sorrow")
-				If Not $a_b_KeepRunning Then
-					$g_b_BotRunning = False
-					BotEngine_SetIdleUiState()
-				EndIf
-				Return False
+		Local $l_b_PortalFromIceDome = MapTravel_CanContinueIceCavesSpineFromCurrent($l_s_Title)
+		If Not MapTravel_EnterTitle($l_s_Title, 8, $l_b_PortalFromIceDome) Then
+			Out("Could not enter " & $l_s_Title)
+			If Not $a_b_KeepRunning Then
+				$g_b_BotRunning = False
+				BotEngine_SetIdleUiState()
 			EndIf
-			$l_b_First = False
-		Else
-			If Not MapTravel_EnterTitle($l_s_Title, 8, True) Then
-				Out("Could not reach " & $l_s_Title & " from map " & Map_GetMapID())
-				If Not $a_b_KeepRunning Then
-					$g_b_BotRunning = False
-					BotEngine_SetIdleUiState()
-				EndIf
-				Return False
-			EndIf
+			Return False
 		EndIf
 		BotEngine_RunCoverageForTitle($l_s_Title)
 	Next
@@ -953,6 +934,8 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	Local Const $GC_I_WAYPOINT_MAX_RETRIES = 3
 	Local $l_b_VanquishedAbort = False
 	Local $l_b_MoveInterrupted = False
+	Local $l_b_ReenterForRepeat = False
+	Local $l_i_SweepMap = Map_GetMapID()
 
 	Coverage_ConfigurePathfinder(False)
 	PathRoute_LoadConfig()
@@ -961,36 +944,61 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	While $g_b_BotRunning And Not $g_b_StopRequested
 		Local $l_i_WaypointRetries = 0
 		If $g_i_CoverageRepeatPass > 0 Then
-			Out("Vanquish repeat " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & _
+			Out("Vanquish leftover check " & $g_i_CoverageRepeatPass & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & _
 				" — walking all " & $g_i_CoverageCount & " waypoints again.")
 		EndIf
 
 		While $g_b_BotRunning And Not $g_b_StopRequested And Not Coverage_IsComplete()
 			BotEngine_WaitIfPaused()
 			If $g_b_StopRequested Then ExitLoop
-			If VanquishCheck_IsCoverageVanquished() Then
-				Out("Coverage abort — area vanquished; switching to portal route.")
+			If VanquishCheck_IsCoverageVanquished() And $g_i_CoverageRepeatPass > 0 Then
+				Out("Coverage abort — leftover pass found area vanquished; switching to portal route.")
 				$g_i_CoverageIndex = $g_i_CoverageCount
 				$l_b_VanquishedAbort = True
 				ExitLoop
 			EndIf
 			Coverage_TrySkipPassedWaypoints($GC_F_COVERAGE_WAYPOINT_REACHED)
 
+			; Finish the current fight before starting the next coordinate set.
+			If Combat_ShouldHoldMovement($g_f_AggroRange, $g_f_FightRangeOut) Then
+				Out("Coverage chain: waiting for combat to end before next set.")
+				If Not Combat_WaitUntilClear($g_f_AggroRange, $g_f_FightRangeOut, $g_i_FinisherMode, "BotEngine_Tick") Then
+					$l_b_MoveInterrupted = True
+					ExitLoop
+				EndIf
+				ContinueLoop
+			EndIf
+
 			Local $l_f_X = 0, $l_f_Y = 0
 			If Not Coverage_GetCurrentPoint($l_f_X, $l_f_Y) Then ExitLoop
 
+			Local $l_f_Reach = Coverage_GetReachedDistance()
 			Local $l_f_DistBefore = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
-			If $l_f_DistBefore <= $GC_F_COVERAGE_WAYPOINT_REACHED Then
+			If $l_f_DistBefore <= $l_f_Reach Then
 				Out("Skip near waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistBefore))
 				Coverage_Advance()
 				Coverage_MarkWaypointReached()
 				ContinueLoop
 			EndIf
+			If Coverage_IsVanquishExitIndex($g_i_CoverageIndex) Then
+				Out("Skip vanquish exit waypoint " & ($g_i_CoverageIndex + 1) & _
+					" @ (" & Round($l_f_X) & "," & Round($l_f_Y) & ") — stay on map to repeat path.")
+				Coverage_Advance()
+				Coverage_MarkWaypointReached()
+				ContinueLoop
+			EndIf
 
-			UpdateStatusLabel("moving " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & _
+			Local $l_i_ChainStart = $g_i_CoverageIndex
+			Local $l_i_ChainEnd = Coverage_FindChainEndIndex()
+			If Not Coverage_GetPointAt($l_f_X, $l_f_Y, $l_i_ChainEnd) Then ExitLoop
+			$l_f_DistBefore = Agent_GetDistanceToXY($l_f_X, $l_f_Y)
+
+			Local $l_s_Chain = String($l_i_ChainStart + 1)
+			If $l_i_ChainEnd > $l_i_ChainStart Then $l_s_Chain &= "-" & ($l_i_ChainEnd + 1)
+			UpdateStatusLabel("moving " & $l_s_Chain & "/" & $g_i_CoverageCount & _
 				Coverage_PassLogSuffix() & " -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ")" & _
 				BotEngine_EventCountSuffix())
-			Out("Coverage " & ($g_i_CoverageIndex + 1) & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix() & _
+			Out("Coverage chain " & $l_s_Chain & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix() & _
 				" -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ") dist=" & Round($l_f_DistBefore))
 
 			SmartCast_EnsureReady(False)
@@ -1018,55 +1026,81 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 					ExitLoop
 				EndIf
 				If Map_GetMapID() <> $l_i_MapBeforeMove Then
+					If $g_b_CoverageIsVanquishRoute And $l_i_ChainEnd >= $g_i_CoverageCount - 3 Then
+						Out("Vanquish route end crossed a portal — finishing this pass to repeat the path.")
+						$g_i_CoverageIndex = $g_i_CoverageCount
+						Coverage_SaveProgress()
+						$l_b_ReenterForRepeat = True
+						ExitLoop
+					EndIf
 					Out("Pathfinder_MoveTo interrupted (map change). Stopping map sweep.")
 					$l_b_MoveInterrupted = True
 					ExitLoop
 				EndIf
-				Out("Pathfinder_MoveTo failed dist=" & Round($l_f_DistAfter) & " — will retry or skip.")
+				Out("Pathfinder_MoveTo failed dist=" & Round($l_f_DistAfter) & " @ (" & _
+					Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & _
+					") — will retry or skip.")
+				If IsFunc(Execute("CombatLogger_LogStuck")) Then CombatLogger_LogStuck("move_failed")
 			EndIf
 
-			Local $l_b_InCombat = Combat_AnyFoesRemain($g_f_FightRangeOut)
+			Local $l_b_InCombat = Combat_ShouldHoldMovement($g_f_AggroRange, $g_f_FightRangeOut)
 
-			If $l_f_DistAfter <= $GC_F_COVERAGE_WAYPOINT_REACHED And Not $l_b_InCombat Then
-				Out("Waypoint " & ($g_i_CoverageIndex + 1) & " reached (dist=" & Round($l_f_DistAfter) & ").")
-				Coverage_Advance()
-				Coverage_MarkWaypointReached()
-				$l_i_WaypointRetries = 0
-
-				Local $l_f_NextX = 0, $l_f_NextY = 0
-				If Coverage_GetCurrentPoint($l_f_NextX, $l_f_NextY) Then
-					Local $l_f_NextDist = Agent_GetDistanceToXY($l_f_NextX, $l_f_NextY)
-					If $l_f_NextDist <= $GC_F_PATHROUTE_CHAIN_WAYPOINT_DIST And _
-						$l_f_NextDist > $GC_F_COVERAGE_WAYPOINT_REACHED And Not $l_b_InCombat Then
-						ContinueLoop
-					EndIf
-				EndIf
-			ElseIf TimerDiff($hMove) > $GC_I_WAYPOINT_TIMEOUT_MS Then
-				Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — timeout (dist=" & Round($l_f_DistAfter) & ").")
-				Coverage_Advance()
-				$l_i_WaypointRetries = 0
-			ElseIf $l_i_WaypointRetries >= $GC_I_WAYPOINT_MAX_RETRIES Then
-				Out("Skip waypoint " & ($g_i_CoverageIndex + 1) & " — max retries (dist=" & Round($l_f_DistAfter) & ").")
-				Coverage_Advance()
+			If $l_f_DistAfter <= Coverage_GetReachedDistance($l_i_ChainEnd) And Not $l_b_InCombat Then
+				Out("Coverage chain " & $l_s_Chain & " reached (dist=" & Round($l_f_DistAfter) & ").")
+				Coverage_AdvanceThrough($l_i_ChainEnd)
 				$l_i_WaypointRetries = 0
 			Else
-				$l_i_WaypointRetries += 1
-				Out("Retry waypoint " & ($g_i_CoverageIndex + 1) & " dist=" & Round($l_f_DistAfter) & _
-					" (" & $l_i_WaypointRetries & "/" & $GC_I_WAYPOINT_MAX_RETRIES & ")")
-				PathRoute_UnstuckNudge()
+				Coverage_TrySkipPassedWaypoints($GC_F_COVERAGE_WAYPOINT_REACHED)
+				If TimerDiff($hMove) > $GC_I_WAYPOINT_TIMEOUT_MS Then
+					Out("Skip chain " & $l_s_Chain & " — timeout (dist=" & Round($l_f_DistAfter) & ") @ (" & _
+						Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ").")
+					If IsFunc(Execute("CombatLogger_LogStuck")) Then CombatLogger_LogStuck("timeout")
+					Coverage_AdvanceThrough($l_i_ChainEnd)
+					$l_i_WaypointRetries = 0
+				ElseIf $l_i_WaypointRetries >= $GC_I_WAYPOINT_MAX_RETRIES Then
+					Out("Skip chain " & $l_s_Chain & " — max retries (dist=" & Round($l_f_DistAfter) & ") @ (" & _
+						Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ").")
+					If IsFunc(Execute("CombatLogger_LogStuck")) Then CombatLogger_LogStuck("max_retries")
+					Coverage_AdvanceThrough($l_i_ChainEnd)
+					$l_i_WaypointRetries = 0
+				Else
+					$l_i_WaypointRetries += 1
+					Out("Retry chain " & $l_s_Chain & " dist=" & Round($l_f_DistAfter) & " @ (" & _
+						Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ") (" & _
+						$l_i_WaypointRetries & "/" & $GC_I_WAYPOINT_MAX_RETRIES & ")")
+					PathRoute_UnstuckNudge()
+				EndIf
 			EndIf
 		WEnd
 
-		If $l_b_VanquishedAbort Or $l_b_MoveInterrupted Or $g_b_StopRequested Or Not $g_b_BotRunning Then ExitLoop
-		If Not Coverage_IsComplete() Then ExitLoop
-		If VanquishCheck_IsCoverageVanquished() Then
+		If $l_b_VanquishedAbort Or $g_b_StopRequested Or Not $g_b_BotRunning Then ExitLoop
+		If $l_b_MoveInterrupted And Not $l_b_ReenterForRepeat Then ExitLoop
+		If Not Coverage_IsComplete() And Not $l_b_ReenterForRepeat Then ExitLoop
+		If VanquishCheck_IsCoverageVanquished() And $g_i_CoverageRepeatPass > 0 Then
 			$l_b_VanquishedAbort = True
 			ExitLoop
 		EndIf
 		If Not Coverage_CanStartVanquishRepeat() Then ExitLoop
 
-		Out("Vanquish run complete, area still open — repeating all coordinates (" & _
-			($g_i_CoverageRepeatPass + 1) & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & ").")
+		If $l_b_ReenterForRepeat And Map_GetMapID() <> $l_i_SweepMap Then
+			If $g_s_CoverageMapTitle = "" Then
+				Out("Left the map at route end and have no title to re-enter — stopping sweep.")
+				$l_b_MoveInterrupted = True
+				ExitLoop
+			EndIf
+			Out("Re-entering " & $g_s_CoverageMapTitle & " to repeat the vanquish path.")
+			If Not MapTravel_EnterTitle($g_s_CoverageMapTitle) Then
+				Out("Could not re-enter " & $g_s_CoverageMapTitle & " to repeat path — stopping sweep.")
+				$l_b_MoveInterrupted = True
+				ExitLoop
+			EndIf
+			$l_i_SweepMap = Map_GetMapID()
+		EndIf
+		$l_b_ReenterForRepeat = False
+
+		Out("Vanquish pass complete — walking coordinates again for missed foes (" & _
+			($g_i_CoverageRepeatPass + 1) & "/" & $GC_I_VANQUISH_ROUTE_REPEATS & _
+			", until vanquish).")
 		Coverage_StartVanquishRepeat()
 	WEnd
 
@@ -1074,11 +1108,17 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		If $g_b_CombatLoggingEnabled Then CombatLogger_FlushIfInCombat()
 		Out("Coverage complete on MapID=" & Map_GetMapID() & "." & BotEngine_EventCountSuffix())
 		If $g_b_CombatLoggingEnabled Then Out("Log file: " & CombatLogger_GetLogFile())
+		If IsFunc(Execute("CombatLogger_GetStuckCount")) And CombatLogger_GetStuckCount() > 0 Then
+			Out("Stuck log (" & CombatLogger_GetStuckCount() & "): " & CombatLogger_GetStuckLogFile())
+		EndIf
 		Coverage_ClearProgress()
 		UpdateStatusLabel("complete" & BotEngine_EventCountSuffix())
 	Else
 		If $g_b_CombatLoggingEnabled Then CombatLogger_FlushIfInCombat()
 		Out("Sweep ended at " & $g_i_CoverageIndex & "/" & $g_i_CoverageCount & BotEngine_EventCountSuffix())
+		If IsFunc(Execute("CombatLogger_GetStuckCount")) And CombatLogger_GetStuckCount() > 0 Then
+			Out("Stuck log (" & CombatLogger_GetStuckCount() & "): " & CombatLogger_GetStuckLogFile())
+		EndIf
 		Coverage_SaveProgress()
 		UpdateStatusLabel("paused " & $g_i_CoverageIndex & "/" & $g_i_CoverageCount & BotEngine_EventCountSuffix())
 	EndIf

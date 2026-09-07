@@ -395,24 +395,43 @@ Func MapTravel_RunPortalRoute(ByRef $a_af2_Points, $a_s_Label = "", $a_b_FromNea
 	PathRoute_LoadConfig()
 	PathRoute_BeginSession($GC_S_PATHROUTE_PROFILE_PORTAL)
 
-	For $i = $l_i_Start To $l_i_Last - 1
+	Local $i = $l_i_Start
+	While $i <= $l_i_Last - 1
 		MapTravel_WaitIfPaused()
 		If $g_b_StopRequested Then
 			PathRoute_EndSession()
 			Return False
 		EndIf
+		If Combat_ShouldHoldMovement(MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut()) Then
+			Out($l_s_Lbl & "waiting for combat to end before next chain set.")
+			If Not Combat_WaitUntilClear(MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), _
+				MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc()) Then
+				PathRoute_EndSession()
+				Return False
+			EndIf
+		EndIf
+
+		Local $l_i_ChainEnd = PathRoute_FindChainEndIndex2D($a_af2_Points, $i, $l_i_Last - 1)
 		Local $l_f_FromX = Agent_GetAgentInfo(-2, "X")
 		Local $l_f_FromY = Agent_GetAgentInfo(-2, "Y")
 		If $i > 0 Then
 			$l_f_FromX = $a_af2_Points[$i - 1][0]
 			$l_f_FromY = $a_af2_Points[$i - 1][1]
 		EndIf
-		If MapTravel_MoveToPortalPoint($a_af2_Points[$i][0], $a_af2_Points[$i][1], _
-			$l_s_Lbl & "WP " & ($i + 1) & "/" & ($l_i_Last + 1), $l_f_FromX, $l_f_FromY) Then
+		Local $l_s_Chain = String($i + 1)
+		If $l_i_ChainEnd > $i Then $l_s_Chain &= "-" & ($l_i_ChainEnd + 1)
+		If MapTravel_MoveToPortalPoint($a_af2_Points[$l_i_ChainEnd][0], $a_af2_Points[$l_i_ChainEnd][1], _
+			$l_s_Lbl & "WP " & $l_s_Chain & "/" & ($l_i_Last + 1), $l_f_FromX, $l_f_FromY) Then
 			PathRoute_EndSession()
 			Return True
 		EndIf
-	Next
+		If Not Combat_WaitUntilClear(MapTravel_GetPortalAggro(), MapTravel_GetPortalFightOut(), _
+			MapTravel_GetPortalFinisher(), MapTravel_GetPortalCallFunc()) Then
+			PathRoute_EndSession()
+			Return False
+		EndIf
+		$i = $l_i_ChainEnd + 1
+	WEnd
 
 	Local $l_f_PortalFromX = Agent_GetAgentInfo(-2, "X")
 	Local $l_f_PortalFromY = Agent_GetAgentInfo(-2, "Y")
@@ -834,15 +853,43 @@ EndFunc
 
 Func MapTravel_TravelToIceCavesOfSorrow()
 	If MapTravel_IsIceCavesOutpost() Then
-		Out("Already at Ice Caves of Sorrow.")
+		Out("Already at Thunderhead Keep.")
 		Return True
 	EndIf
-	Out("Map travel to Ice Caves of Sorrow (" & $IceCavesOfSorrow_Outpost & ")")
+	Out("Map travel to Thunderhead Keep (" & $IceCavesOfSorrow_Outpost & ")")
 	If MapTravel_TravelToOutpost($IceCavesOfSorrow_Outpost) Then
-		Out("Arrived at Ice Caves of Sorrow.")
+		Out("Arrived at Thunderhead Keep.")
 		Return True
 	EndIf
-	Out("Failed to travel to Ice Caves of Sorrow.")
+	Out("Failed to travel to Thunderhead Keep.")
+	Return False
+EndFunc
+
+Func MapTravel_TravelToIronMinesOfMoladune()
+	If MapTravel_IsIronMinesOfMoladuneOutpost() Then
+		Out("Already at Iron Mines of Moladune.")
+		Return True
+	EndIf
+	Out("Map travel to Iron Mines of Moladune (" & $IronMinesOfMoladune_Outpost & ")")
+	If MapTravel_TravelToOutpost($IronMinesOfMoladune_Outpost) Then
+		Out("Arrived at Iron Mines of Moladune.")
+		Return True
+	EndIf
+	Out("Failed to travel to Iron Mines of Moladune.")
+	Return False
+EndFunc
+
+Func MapTravel_TravelToCampRankor()
+	If MapTravel_IsCampRankorOutpost() Then
+		Out("Already at Camp Rankor.")
+		Return True
+	EndIf
+	Out("Map travel to Camp Rankor (" & $CampRankor_Outpost & ")")
+	If MapTravel_TravelToOutpost($CampRankor_Outpost) Then
+		Out("Arrived at Camp Rankor.")
+		Return True
+	EndIf
+	Out("Failed to travel to Camp Rankor.")
 	Return False
 EndFunc
 
@@ -850,10 +897,21 @@ Func MapTravel_TravelToOutpost($a_i_OutpostID)
 	If $a_i_OutpostID <= 0 Then Return False
 	If Map_GetMapID() = $a_i_OutpostID Then
 		If $a_i_OutpostID = $IceCavesOfSorrow_Outpost Then Return True
+		If $a_i_OutpostID = $TalusChute_Outpost Then Return True
+		If $a_i_OutpostID = $IronMinesOfMoladune_Outpost Then Return True
+		If $a_i_OutpostID = $MineralSprings_Outpost Then Return True
+		If $a_i_OutpostID = $SpearheadPeak_Outpost Then Return True
 		If Not Map_GetInstanceInfo("IsExplorable") Then Return True
 	EndIf
 
 	If Map_GetInstanceInfo("IsExplorable") Then
+		If MapTravel_IsOnSouthernShiverpeaksExplorable() And $a_i_OutpostID <> $CampRankor_Outpost And _
+			$a_i_OutpostID <> $TalusChute_Outpost And $a_i_OutpostID <> $IceCavesOfSorrow_Outpost And _
+			$a_i_OutpostID <> $IronMinesOfMoladune_Outpost And $a_i_OutpostID <> $MineralSprings_Outpost And _
+			$a_i_OutpostID <> $SpearheadPeak_Outpost Then
+			Out("Southern Shiverpeaks: skip resign to outpost " & $a_i_OutpostID & " (stay on map " & Map_GetMapID() & ")")
+			Return False
+		EndIf
 		Out("Resigning to return to outpost before travel...")
 		If Not MapTravel_ResignToOutpost() Then Return False
 	EndIf
@@ -945,27 +1003,70 @@ Func MapTravel_EnterTitle($a_s_Title, $a_i_MaxAttempts = 8, $a_b_TransitOnly = F
 		Return True
 	EndIf
 
-	If Not $l_b_TransitOnly And (MapTravel_CanContinueTOASpineFromCurrent($a_s_Title) Or MapTravel_CanContinueSouthernShiverpeaksSpineFromCurrent($a_s_Title) Or MapTravel_CanContinueIceCavesSpineFromCurrent($a_s_Title)) Then
+	If MapTravel_ShouldTravelToCampRankor($a_s_Title) Then
+		Out("Southern Shiverpeaks: map travel to Camp Rankor for " & $a_s_Title)
+		$l_b_TransitOnly = False
+	ElseIf MapTravel_ShouldTravelToIceCavesForTalus($a_s_Title) Then
+		Out("Talus Chute: map travel to Ice Caves of Sorrow")
+		$l_b_TransitOnly = False
+	ElseIf MapTravel_ShouldTravelToIceDomeEntry($a_s_Title) Then
+		Out("IceDome: map travel to Ice Caves of Sorrow")
+		$l_b_TransitOnly = False
+	ElseIf MapTravel_ShouldTravelToFrozenForestEntry($a_s_Title) Then
+		Out("Frozen Forest: map travel to Iron Mines of Moladune")
+		$l_b_TransitOnly = False
+	ElseIf MapTravel_ShouldTravelToIceFloeEntry($a_s_Title) Then
+		Out("Ice Floe: map travel to Thunderhead Keep")
+		$l_b_TransitOnly = False
+	ElseIf Not $l_b_TransitOnly And (MapTravel_CanContinueTOASpineFromCurrent($a_s_Title) Or _
+		MapTravel_CanContinueSouthernShiverpeaksSpineFromCurrent($a_s_Title) Or _
+		MapTravel_CanContinueIceCavesSpineFromCurrent($a_s_Title) Or _
+		(MapTravel_IsSouthernShiverpeaksRegionTitle($a_s_Title) And MapTravel_IsOnSouthernShiverpeaksExplorable())) Then
 		If MapTravel_CanContinueTOASpineFromCurrent($a_s_Title) Then
 			Out("TOA spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
-		ElseIf MapTravel_CanContinueSouthernShiverpeaksSpineFromCurrent($a_s_Title) Then
-			Out("Southern Shiverpeaks spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
+		ElseIf MapTravel_CanContinueIceCavesSpineFromCurrent($a_s_Title) Then
+			Out("IceDome vanquish done: portal to " & $a_s_Title)
 		Else
-			Out("Ice Caves spine: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title)
+			Out("Southern Shiverpeaks: portal hop from map " & Map_GetMapID() & " -> " & $a_s_Title & " (no resign)")
 		EndIf
 		$l_b_TransitOnly = True
 	EndIf
 
 	If Not $l_b_TransitOnly Then
-		If MapTravel_IsIceCavesSpineTarget($a_s_Title) Then
-			If Not MapTravel_IsIceCavesOutpost() Then
-				Out("Ice Caves spine: map travel to entry outpost -> " & $a_s_Title)
-				If Not MapTravel_TravelToIceCavesOfSorrow() Then
+		If $a_s_Title = "IceDome" Then
+			If Not MapTravel_IsIceCavesOfSorrowTown() And Map_GetMapID() <> $TalusChute_Map Then
+				Out("IceDome: map travel to Ice Caves of Sorrow -> Talus Chute")
+				If Not MapTravel_TravelToIceCavesOfSorrowTown() Then
 					Out("Failed to map travel to Ice Caves of Sorrow for " & $a_s_Title)
 					Return False
 				EndIf
 			Else
-				Out("Ice Caves spine: leaving outpost toward " & $a_s_Title)
+				Out("IceDome: leaving toward Ice Dome")
+			EndIf
+		ElseIf $a_s_Title = "FrozenForest" Then
+			If Not MapTravel_TravelToIronMinesOfMoladune() Then
+				Out("Failed to map travel to Iron Mines of Moladune for " & $a_s_Title)
+				Return False
+			EndIf
+		ElseIf $a_s_Title = "IceFloe" Then
+			If Not MapTravel_TravelToIceCavesOfSorrow() Then
+				Out("Failed to map travel to Thunderhead Keep for " & $a_s_Title)
+				Return False
+			EndIf
+		ElseIf MapTravel_ShouldTravelToCampRankor($a_s_Title) Then
+			If Not MapTravel_TravelToCampRankor() Then
+				Out("Failed to map travel to Camp Rankor for " & $a_s_Title)
+				Return False
+			EndIf
+		ElseIf $a_s_Title = "TalusChute" Then
+			If Not MapTravel_IsIceCavesOfSorrowTown() Then
+				Out("Talus Chute: not on Ice Caves of Sorrow — TravelTo " & $TalusChute_Outpost)
+				If Not MapTravel_TravelToIceCavesOfSorrowTown() Then
+					Out("Failed to map travel to Ice Caves of Sorrow for " & $a_s_Title)
+					Return False
+				EndIf
+			Else
+				Out("Talus Chute: leaving Ice Caves of Sorrow")
 			EndIf
 		Else
 			If $l_i_Outpost <= 0 Then $l_i_Outpost = $TheBlackCurtain_Outpost

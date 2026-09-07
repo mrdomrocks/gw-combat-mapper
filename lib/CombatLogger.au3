@@ -17,6 +17,14 @@ Global $g_b_CombatLogEnabled = False
 Global $g_s_CaravanLogStartMap = "DeldrimorBowl"
 Global $g_s_MapCoordLogFile = ""
 Global $g_i_MapCoordLoggedCount = 0
+Global $g_s_StuckLogFile = ""
+Global $g_i_StuckLoggedCount = 0
+Global $g_i_StuckLogMapID = 0
+Global $g_f_StuckLastX = 0
+Global $g_f_StuckLastY = 0
+Global $g_h_StuckLastTimer = 0
+Global Const $GC_F_STUCK_LOG_DEDUP_DIST = 200
+Global Const $GC_I_STUCK_LOG_DEDUP_MS = 4000
 
 Func CombatLogger_LoadConfig($a_s_ConfigPath = "")
 	If $a_s_ConfigPath = "" Then $a_s_ConfigPath = @ScriptDir & "\config.ini"
@@ -213,4 +221,84 @@ EndFunc
 
 Func CombatLogger_GetMapCoordCount()
 	Return $g_i_MapCoordLoggedCount
+EndFunc
+
+; Pathfinder stuck spots — append to logs/pathfinder_stuck_<mapid>.csv (same columns as combat logs).
+Func CombatLogger_EnsureStuckLog()
+	CombatLogger_LoadConfig()
+
+	If Not FileExists(@ScriptDir & "\" & $g_s_LogDirectory) Then
+		DirCreate(@ScriptDir & "\" & $g_s_LogDirectory)
+	EndIf
+
+	Local $l_i_MapID = Map_GetMapID()
+	If $l_i_MapID <= 0 Then Return False
+
+	Local $l_s_Path = @ScriptDir & "\" & $g_s_LogDirectory & "\pathfinder_stuck_" & $l_i_MapID & ".csv"
+	If $g_s_StuckLogFile <> $l_s_Path Then
+		$g_s_StuckLogFile = $l_s_Path
+		$g_i_StuckLoggedCount = 0
+		$g_i_StuckLogMapID = $l_i_MapID
+		$g_h_StuckLastTimer = 0
+		If Not FileExists($l_s_Path) Then
+			Local $l_h = FileOpen($l_s_Path, $FO_OVERWRITE + $FO_CREATEPATH)
+			If $l_h = -1 Then
+				Out("Stuck log: could not create " & $l_s_Path)
+				Return False
+			EndIf
+			FileWriteLine($l_h, "timestamp,map_id,event,x,y")
+			FileClose($l_h)
+			Out("Pathfinder stuck log: " & $l_s_Path)
+		EndIf
+	EndIf
+	Return True
+EndFunc
+
+Func CombatLogger_LogStuck($a_s_Event = "stuck", $a_f_X = Default, $a_f_Y = Default)
+	Local $l_f_X = $a_f_X
+	Local $l_f_Y = $a_f_Y
+	If $l_f_X = Default Or $l_f_Y = Default Then
+		$l_f_X = Agent_GetAgentInfo(-2, "X")
+		$l_f_Y = Agent_GetAgentInfo(-2, "Y")
+	EndIf
+	If $l_f_X = 0 And $l_f_Y = 0 Then Return False
+	If Not CombatLogger_EnsureStuckLog() Then Return False
+
+	Local $l_i_Map = Map_GetMapID()
+	If $l_i_Map = $g_i_StuckLogMapID And $g_h_StuckLastTimer <> 0 Then
+		Local $l_f_Dx = $l_f_X - $g_f_StuckLastX
+		Local $l_f_Dy = $l_f_Y - $g_f_StuckLastY
+		If Sqrt($l_f_Dx * $l_f_Dx + $l_f_Dy * $l_f_Dy) < $GC_F_STUCK_LOG_DEDUP_DIST _
+			And TimerDiff($g_h_StuckLastTimer) < $GC_I_STUCK_LOG_DEDUP_MS Then
+			Return True
+		EndIf
+	EndIf
+
+	Local $l_s_Ts = @YEAR & "-" & @MON & "-" & @MDAY & " " & @HOUR & ":" & @MIN & ":" & @SEC
+	Local $l_s_Line = $l_s_Ts & "," & $l_i_Map & "," & $a_s_Event & "," & _
+		Round($l_f_X, 2) & "," & Round($l_f_Y, 2)
+
+	Local $l_h = FileOpen($g_s_StuckLogFile, $FO_APPEND + $FO_CREATEPATH)
+	If $l_h = -1 Then
+		Out("Stuck log: could not append to " & $g_s_StuckLogFile)
+		Return False
+	EndIf
+	FileWriteLine($l_h, $l_s_Line)
+	FileClose($l_h)
+
+	$g_i_StuckLoggedCount += 1
+	$g_i_StuckLogMapID = $l_i_Map
+	$g_f_StuckLastX = $l_f_X
+	$g_f_StuckLastY = $l_f_Y
+	$g_h_StuckLastTimer = TimerInit()
+	If $g_i_StuckLoggedCount = 1 Then Out("Pathfinder stuck log: " & $g_s_StuckLogFile)
+	Return True
+EndFunc
+
+Func CombatLogger_GetStuckLogFile()
+	Return $g_s_StuckLogFile
+EndFunc
+
+Func CombatLogger_GetStuckCount()
+	Return $g_i_StuckLoggedCount
 EndFunc

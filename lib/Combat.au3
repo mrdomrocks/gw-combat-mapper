@@ -87,10 +87,10 @@ Func Combat_AnyFoesRemain($a_f_FightOut)
 	Return False
 EndFunc
 
-; Fight until no living foes remain within fight range (+ grace). Returns False if stopped.
+; Fight until aggro/engagement is clear (+ grace). Distant idle packs in FightRangeOut
+; are left for later waypoints. Returns False if stopped.
 Func Combat_WaitUntilClear($a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc = "")
-	If $a_f_FightOut <= 0 Then Return True
-	If Not Combat_AnyFoesRemain($a_f_FightOut) Then Return True
+	If Not Combat_ShouldHoldMovement($a_f_Aggro, $a_f_FightOut) Then Return True
 
 	Local $l_h_Clear = 0
 	While True
@@ -99,7 +99,7 @@ Func Combat_WaitUntilClear($a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFu
 
 		If Map_GetInstanceInfo("Type") <> $GC_I_MAP_TYPE_EXPLORABLE Then Return True
 
-		If Combat_AnyFoesRemain($a_f_FightOut) Then
+		If Combat_ShouldHoldMovement($a_f_Aggro, $a_f_FightOut) Then
 			$l_h_Clear = 0
 			Local $l_f_Cx = Agent_GetAgentInfo(-2, "X")
 			Local $l_f_Cy = Agent_GetAgentInfo(-2, "Y")

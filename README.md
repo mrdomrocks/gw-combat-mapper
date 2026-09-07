@@ -4,6 +4,8 @@ AutoIt bots for Guild Wars Hard Mode vanquish automation using GwAu3 Pathfinder,
 
 **Use at your own risk.** Automation may violate Guild Wars Terms of Service.
 
+This project is a **GwAu3 script**, not a standalone wrapper. Clone it into `GwAu3/Scripts/`.
+
 ## Launchers
 
 | Script | Purpose |
@@ -17,10 +19,51 @@ Both share the same caravan sequences, vanquish routes, travel/GoOut logic, and 
 
 | Requirement | Notes |
 |-------------|--------|
+| **GwAu3** | Clone [GwAu3](https://github.com/GwAu3-Projects/GwAu3) first. This folder must live at `GwAu3/Scripts/gw-combat-mapper/`. |
 | **Windows x86 AutoIt** | AutoIt **3.3.16.1+** in **32-bit** mode (x86). GwAu3 will not work with 64-bit AutoIt. |
 | **Guild Wars client** | Logged in (outpost or explorable). Party leader required for Hard Mode. |
 | **Pathfinder maps** | First `Pathfinder_Initialize` downloads `maps.rar` next to `GWPathfinder.dll` when online. |
-| **Linux / Nobara** | Run GW + AutoIt under **Wine** (Windows prefix) or on a Windows machine. |
+| **Linux / Wine** | Run GW + AutoIt under **Wine** (Windows prefix) or on a Windows machine. |
+
+## Install
+
+```text
+GwAu3/
+  API/
+    _GwAu3.au3
+    Plugins/Pathfinder/GWPathfinder.dll
+  Scripts/
+    gw-combat-mapper/          <-- clone this repo here
+      CombatMapper.au3
+      VanquishBot.au3
+      lib/
+      config.ini.example
+      vanquish_config.ini.example
+```
+
+1. Install AutoIt **x86** 3.3.16.1+.
+2. Clone GwAu3: `git clone --depth 1 https://github.com/GwAu3-Projects/GwAu3.git`
+3. Clone this repo into Scripts:
+
+   ```text
+   git clone https://github.com/mrdomrocks/gw-combat-mapper.git GwAu3/Scripts/gw-combat-mapper
+   ```
+
+4. Copy example configs (or let the launchers copy them on first run):
+
+   ```text
+   copy config.ini.example config.ini
+   copy vanquish_config.ini.example vanquish_config.ini
+   ```
+
+5. Launch Guild Wars, then run **`VanquishBot.au3`** or **`CombatMapper.au3`** as administrator.
+
+Optional CLI:
+
+```text
+AutoIt3.exe VanquishBot.au3 -character "YourCharName"
+AutoIt3.exe CombatMapper.au3 -character "YourCharName"
+```
 
 ## Target modes (both bots)
 
@@ -30,56 +73,11 @@ Both share the same caravan sequences, vanquish routes, travel/GoOut logic, and 
 | **Single title** | LocationsIDS name (e.g. `TravelersVale`, `NorthKrytaProvince`). TravelTo outpost → Hard Mode → GoOut portal route → vanquish route sweep. |
 | **(Sequence) campaign caravan** | Portal through spine maps; **Ctrl+click** maps to vanquish. Unselected maps are portal transit only. Sequences: Ascalon, Maguuma, EOTN, Factions, Nightfall. |
 
-## Layout
-
-```
-gw-combat-mapper/
-  CombatMapper.au3          # combat CSV logger
-  VanquishBot.au3           # vanquish + heroes
-  config.ini                # travel, coverage, combat, pathroute
-  vanquish_config.ini       # hero teams (Team4/6/8)
-  lib/
-    BotEngine.au3           # shared run loop
-    HeroTeam.au3            # hero setup (Vanquish Bot)
-    CaravanGui.au3          # caravan map list helpers
-    Coverage.au3
-    CombatLogger.au3        # Combat Mapper only
-    MapRoute.au3            # generated — all vanquish + caravan routes
-    MapCatalog.au3
-    MapTravel.au3
-    SmartCast.au3
-    maps/
-      Vanquish/             # 130 navmesh-repaired route arrays
-      Routes/               # 16 caravan Ascalon farm routes
-      GoOutRoutes.au3
-      Caravan_*Plan.au3
-  vendor/
-    GwAu3/
-    vanquish-bot/Maps/      # gitignored route **source** for navmesh repair
-  scripts/
-    generate_map_route.py   # regenerate lib/MapRoute.au3
-    navmesh/repair_vanquish.py
-```
-
-## Setup
-
-1. Ensure `vendor/GwAu3` exists (`git clone --depth 1 https://github.com/GwAu3-Projects/GwAu3.git vendor/GwAu3` if missing).
-2. Clone or copy [`vendor/vanquish-bot`](vendor/vanquish-bot) route sources if regenerating vanquish arrays.
-3. Install AutoIt **x86**.
-4. Launch Guild Wars; run **`VanquishBot.au3`** for vanquishing or **`CombatMapper.au3`** for coordinate logging.
-
-Optional CLI:
-
-```text
-AutoIt3.exe VanquishBot.au3 -character "YourCharName"
-AutoIt3.exe CombatMapper.au3 -character "YourCharName"
-```
-
 ## Config
 
-**Travel / coverage / combat:** [`config.ini`](config.ini)
+**Travel / coverage / combat:** [`config.ini`](config.ini.example) (copied from `config.ini.example` on first run)
 
-**Hero teams (Vanquish Bot):** [`vanquish_config.ini`](vanquish_config.ini)
+**Hero teams (Vanquish Bot):** [`vanquish_config.ini`](vanquish_config.ini.example)
 
 ```ini
 [Team4]
@@ -92,31 +90,21 @@ Hero1=...
 Hero1=...
 ```
 
-Hero teams are applied automatically before each map based on that map's max party size (4, 6, or 8).
-
-## Route maintenance
-
-Regenerate the MapRoute loader after editing route files:
-
-```bash
-python3 scripts/generate_map_route.py
-python3 scripts/generate_map_route.py --check   # CI staleness check
-```
-
-Refresh vanquish coordinate arrays from vendor source:
-
-```bash
-python3 -m scripts.navmesh.repair_vanquish repair
-python3 scripts/merge_caravan_routes.py
-python3 scripts/generate_map_route.py
-```
+Hero teams are applied automatically before each map based on that map's max party size (4, 6, or 8). Configure Team 4/6/8 in the GUI; selections are saved when you click **Start**.
 
 ## Recommended first test (Vanquish Bot)
 
-1. Configure heroes for Team 4/6/8 → **Save Heroes**.
+1. Configure heroes for Team 4/6/8 in the GUI.
 2. Select **(Sequence) Ascalon Caravan**; Ctrl+click 1–2 maps (e.g. `NorthKrytaProvince`).
 3. Enable **Hard Mode** and **Skip completed**.
 4. Start → confirm travel, hero setup, route walk, and vanquish repeat passes.
+
+## Map notes
+
+- **Snake Dance** (from Camp Rankor): early route is tough. A large pack of Stone Summit Dolyak Riders sits near the outpost exit; expect a hard pull before the path opens up.
+- **Ice Dome**: map travel to Ice Caves of Sorrow, then Talus Chute to the Ice Dome door.
+- **Frozen Forest**: map travel to Iron Mines of Moladune.
+- **Ice Floe**: map travel to Thunderhead Keep.
 
 ## Combat Mapper CSV columns
 
@@ -126,8 +114,14 @@ python3 scripts/generate_map_route.py
 
 | Symptom | Fix |
 |---------|-----|
+| Script cannot find GwAu3 | This folder must be `GwAu3/Scripts/gw-combat-mapper/` (two levels below `API/`). |
 | Hard Mode not set | Be party leader in an outpost before GoOut. |
-| GoOut fails | Confirm Pathfinder maps.rar; check console for portal WP lines. |
-| No route for map | Run `generate_map_route.py`; confirm file exists under `lib/maps/Vanquish/`. |
+| GoOut fails | Confirm Pathfinder `maps.rar` next to `GWPathfinder.dll`; check console for portal WP lines. |
+| No route for map | Confirm the map file exists under `lib/maps/Vanquish/`. |
 | Heroes not added | Must be in outpost; configure the matching Team N for map party size. |
 | AutoIt crash | Use **32-bit** AutoIt; run as admin. |
+
+## Credits
+
+- [GwAu3](https://github.com/GwAu3-Projects/GwAu3) by JAG-GW (MIT) — game API and Pathfinder.
+- Route coordinates were derived from the earlier Guild Wars Vanquish Bot map scripts.

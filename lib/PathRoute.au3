@@ -2,8 +2,9 @@
 #include "maps\LocationsIDS.au3"
 #include "Combat.au3"
 
-; Shared anchor-chain validation for vanquish routes and portal walks.
-; Coordinate arrays define strategic waypoints; Pathfinder validates reachability.
+; Shared anchor-chain validation and look-ahead for vanquish routes and portal walks.
+; Out of combat, consecutive coordinates within ClickAhead walk as one set.
+; Combat holds the next set until the current fight is clear.
 
 ; Provided by CombatMapper.au3
 Global $g_b_BotRunning = False
@@ -125,7 +126,9 @@ Func PathRoute_UnstuckNudge($a_f_Distance = 500)
 	$g_i_PathRouteUnstuckDirection = Mod($g_i_PathRouteUnstuckDirection + 1, 8)
 	Local $l_f_NudgeX = $l_f_X + Cos($l_f_Angle) * $a_f_Distance
 	Local $l_f_NudgeY = $l_f_Y + Sin($l_f_Angle) * $a_f_Distance
-	Out("PathRoute: unstuck nudge -> (" & Round($l_f_NudgeX) & "," & Round($l_f_NudgeY) & ")")
+	Out("PathRoute: stuck @ (" & Round($l_f_X) & "," & Round($l_f_Y) & ") — unstuck nudge -> (" & _
+		Round($l_f_NudgeX) & "," & Round($l_f_NudgeY) & ")")
+	If IsFunc(Execute("CombatLogger_LogStuck")) Then CombatLogger_LogStuck("stuck", $l_f_X, $l_f_Y)
 	Map_MoveLayer($l_f_NudgeX, $l_f_NudgeY, $l_i_Layer)
 	$g_f_PathRouteLastMoveX = $l_f_NudgeX
 	$g_f_PathRouteLastMoveY = $l_f_NudgeY
@@ -189,6 +192,45 @@ EndFunc
 Func PathRoute_GetMoveSimplifyRange($a_s_Profile)
 	If $a_s_Profile = $GC_S_PATHROUTE_PROFILE_PORTAL Then Return $g_i_PathRouteSimplifyPortal
 	Return $g_i_PathRouteSimplifyCoverage
+EndFunc
+
+; Furthest index in a recorded coordinate chain to walk as one set while out of combat.
+; Stops before a large gap or once the look-ahead / path length exceeds ClickAhead.
+Func PathRoute_FindChainEndIndex(ByRef $a_a_X, ByRef $a_a_Y, $a_i_Start, $a_i_Count, $a_f_ClickAhead = 0, $a_f_MaxStep = 0)
+	If $a_i_Count < 1 Then Return 0
+	If $a_i_Start < 0 Then $a_i_Start = 0
+	If $a_i_Start >= $a_i_Count Then Return $a_i_Count - 1
+	If $a_f_ClickAhead <= 0 Then $a_f_ClickAhead = $g_f_PathRouteClickAhead
+	If $a_f_MaxStep <= 0 Then $a_f_MaxStep = $GC_F_PATHROUTE_CHAIN_WAYPOINT_DIST
+
+	Local $l_i_End = $a_i_Start
+	Local $l_f_Accum = 0
+	Local $l_f_Px = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_Py = Agent_GetAgentInfo(-2, "Y")
+	Local $i
+	For $i = $a_i_Start + 1 To $a_i_Count - 1
+		Local $l_f_Step = PathRoute_Distance($a_a_X[$i - 1], $a_a_Y[$i - 1], $a_a_X[$i], $a_a_Y[$i])
+		If $l_f_Step > $a_f_MaxStep Then ExitLoop
+		$l_f_Accum += $l_f_Step
+		If $l_f_Accum > $a_f_ClickAhead Then ExitLoop
+		If PathRoute_Distance($l_f_Px, $l_f_Py, $a_a_X[$i], $a_a_Y[$i]) > $a_f_ClickAhead Then ExitLoop
+		$l_i_End = $i
+	Next
+	Return $l_i_End
+EndFunc
+
+Func PathRoute_FindChainEndIndex2D(ByRef $a_af2_Points, $a_i_Start, $a_i_LastInclusive, $a_f_ClickAhead = 0, $a_f_MaxStep = 0)
+	If Not IsArray($a_af2_Points) Then Return $a_i_Start
+	If $a_i_LastInclusive < $a_i_Start Then Return $a_i_Start
+	Local $l_i_Count = $a_i_LastInclusive - $a_i_Start + 1
+	Local $l_a_X[$l_i_Count]
+	Local $l_a_Y[$l_i_Count]
+	Local $i
+	For $i = 0 To $l_i_Count - 1
+		$l_a_X[$i] = $a_af2_Points[$a_i_Start + $i][0]
+		$l_a_Y[$i] = $a_af2_Points[$a_i_Start + $i][1]
+	Next
+	Return $a_i_Start + PathRoute_FindChainEndIndex($l_a_X, $l_a_Y, 0, $l_i_Count, $a_f_ClickAhead, $a_f_MaxStep)
 EndFunc
 
 ; Advance path index while the player is already near upcoming mesh points.
@@ -271,6 +313,7 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 	Local $l_f_MoveY = $a_f_DestY
 	Local $l_i_Layer = Number(Agent_GetAgentInfo(-2, "Plane"))
 	Local $l_b_WasHolding = False
+	Local $l_b_FoughtThisLeg = False
 	Local $l_h_FoesClear = 0
 
 	PathRoute_SelectPathTarget($l_a_Path, $l_i_PathIndex, $l_f_LastX, $l_f_LastY, $a_f_DestX, $a_f_DestY, _
@@ -288,15 +331,15 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 		Local $l_f_Cy = Agent_GetAgentInfo(-2, "Y")
 		Local $l_b_AtDest = PathRoute_Distance($l_f_Cx, $l_f_Cy, $a_f_DestX, $a_f_DestY) <= $l_f_Reach
 		Local $l_b_HoldForCombat = False
-		Local $l_b_FoesRemain = False
 
 		If Map_GetInstanceInfo("Type") = $GC_I_MAP_TYPE_EXPLORABLE Then
 			UAI_Fight($l_f_Cx, $l_f_Cy, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher)
 			$l_b_HoldForCombat = Combat_ShouldHoldMovement($a_f_Aggro, $a_f_FightOut)
-			$l_b_FoesRemain = Combat_AnyFoesRemain($a_f_FightOut)
 		EndIf
 
-		If $l_b_AtDest And Not $l_b_FoesRemain Then
+		; At dest: keep running out of combat. Only wait the fight-end grace after a hold.
+		If $l_b_AtDest And Not $l_b_HoldForCombat Then
+			If Not $l_b_FoughtThisLeg Then ExitLoop
 			If $l_h_FoesClear = 0 Then
 				$l_h_FoesClear = TimerInit()
 			ElseIf TimerDiff($l_h_FoesClear) >= Combat_GetEndGraceMs() Then
@@ -307,6 +350,7 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 		EndIf
 
 		If $l_b_HoldForCombat And Not $l_b_WasHolding Then
+			$l_b_FoughtThisLeg = True
 			Agent_CancelAction()
 			$g_f_PathRouteLastMoveX = 0
 			$g_f_PathRouteLastMoveY = 0
@@ -328,7 +372,7 @@ Func PathRoute_WalkTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 			PathRoute_IssueMove($l_f_MoveX, $l_f_MoveY, $l_i_Layer)
 		EndIf
 
-		If Not $l_b_HoldForCombat And PathRoute_Distance($l_f_Cx, $l_f_Cy, $l_f_LastX, $l_f_LastY) < $GC_I_PATHROUTE_STUCK_DIST Then
+		If Not $l_b_AtDest And Not $l_b_HoldForCombat And PathRoute_Distance($l_f_Cx, $l_f_Cy, $l_f_LastX, $l_f_LastY) < $GC_I_PATHROUTE_STUCK_DIST Then
 			If TimerDiff($l_h_Stuck) >= $GC_I_PATHROUTE_STUCK_MS Then
 				$l_i_StuckStrikes += 1
 				If $l_i_StuckStrikes >= $GC_I_PATHROUTE_STUCK_STRIKES Then
@@ -423,7 +467,9 @@ Func PathRoute_MoveTo($a_f_DestX, $a_f_DestY, $a_s_Profile, $a_f_Aggro, $a_f_Fig
 
 	Local $l_f_Remaining = Agent_GetDistanceToXY($a_f_DestX, $a_f_DestY)
 	If $l_f_Remaining > 400 Then
-		Out("PathRoute: final move failed dist=" & Round($l_f_Remaining) & " — unstuck retry")
+		Out("PathRoute: final move failed dist=" & Round($l_f_Remaining) & " @ (" & _
+			Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ") — unstuck retry")
+		If IsFunc(Execute("CombatLogger_LogStuck")) Then CombatLogger_LogStuck("move_failed")
 		PathRoute_UnstuckNudge()
 		Return Pathfinder_MoveTo($a_f_DestX, $a_f_DestY, -1, $l_v_Obstacles, $a_f_Aggro, $a_f_FightOut, $a_i_Finisher, $a_s_CallFunc)
 	EndIf

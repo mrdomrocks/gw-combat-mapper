@@ -16,7 +16,7 @@ Global Const $GC_AS_MAGUUMA_CARAVAN_TITLES = "TheBlackCurtain|TalmarkWilderness|
 Global Const $GC_AS_PROPH_NORTHERN_SHIVERPEAKS = "AnvilRock|DeldrimorBowl|GriffonsMouth|IronHorseMine|TravelersVale"
 Global Const $GC_AS_PROPH_KRYTA = "CursedLands|KessexPeak|MajestysRest|NeboTerrace|NorthKrytaProvince|ScoundrelsRise|StingrayStrand|TalmarkWilderness|TearsoftheFallen|TheBlackCurtain|TwinSerpentLakes|WatchtowerCoast"
 Global Const $GC_AS_PROPH_CRYSTAL_DESERT = "DivinersAscent|ProphetsPath|SaltFlats|SkywardReach|TheAridSea|TheScar|VultureDrifts"
-Global Const $GC_AS_PROPH_SOUTHERN_SHIVERPEAKS = "TalusChute|SnakeDance|DreadnoughtsDrift|LornarsPass|IceDome|FrozenForest|IceFloe|GrenthsFootprint|MineralSprings|TascasDemise|WitmansFolly"
+Global Const $GC_AS_PROPH_SOUTHERN_SHIVERPEAKS = "TalusChute|SnakeDance|DreadnoughtsDrift|LornarsPass|IceDome|FrozenForest|IceFloe|GrenthsFootprint|SpearheadPeak|MineralSprings|TascasDemise|WitmansFolly"
 Global Const $GC_AS_PROPH_RING_OF_FIRE = "PerditionRock"
 
 Global Const $GC_AS_FACTIONS_SHING_JEA = "HaijuLagoon|JayaBluffs|KinyaProvince|MinisterChosEstate|PanjiangPeninsula|SaoshangTrail|SunquaVale|ZenDaijun"

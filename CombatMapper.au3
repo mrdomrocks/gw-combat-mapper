@@ -1,7 +1,8 @@
 #RequireAdmin
 #NoTrayIcon
 
-#include "vendor\GwAu3\API\_GwAu3.au3"
+#include "..\..\API\_GwAu3.au3"
+#include "lib\EnsureConfig.au3"
 #include "lib\maps\LocationsIDS.au3"
 #include "lib\CaravanPlan.au3"
 #include "lib\maps\GoOutRoutes.au3"
@@ -15,11 +16,13 @@
 #include "lib\CaravanGui.au3"
 #include "lib\BotEngine.au3"
 
-$DLL_PATH = @ScriptDir & "\vendor\GwAu3\API\Plugins\Pathfinder\GWPathfinder.dll"
+$DLL_PATH = @ScriptDir & "\..\..\API\Plugins\Pathfinder\GWPathfinder.dll"
 
 Global Const $GC_B_LOAD_LOGGED_CHARS = True
 Global Const $GC_S_BOT_TITLE = "GwAu3 Combat Mapper"
 Global Const $GC_S_CONFIG = @ScriptDir & "\config.ini"
+
+EnsureConfig_CopyIfMissing()
 
 Global $g_b_CombatLoggingEnabled = True
 
@@ -70,8 +73,8 @@ GUICtrlSetState($g_h_OnTopCheckbox, $GUI_CHECKED)
 GUICtrlSetOnEvent($g_h_OnTopCheckbox, "GuiButtonHandler")
 
 $g_h_DebugCheckbox = GUICtrlCreateCheckbox("Debug", 270, 27, 55, 24)
-GUICtrlSetState($g_h_DebugCheckbox, $GUI_CHECKED)
 GUICtrlSetOnEvent($g_h_DebugCheckbox, "GuiButtonHandler")
+Log_SetDebugMode(False)
 
 $g_h_HardModeCheckbox = GUICtrlCreateCheckbox("Hard Mode", 340, 27, 85, 24)
 If Number(IniRead($GC_S_CONFIG, "Travel", "HardMode", "1")) <> 0 Then
@@ -130,7 +133,7 @@ If Number(IniRead($GC_S_CONFIG, "Travel", "SkipVanquished", "1")) <> 0 Then
 Else
 	GUICtrlSetState($g_h_SkipVanquishedCheckbox, $GUI_UNCHECKED)
 EndIf
-Global $g_h_CaravanHintLabel = GUICtrlCreateLabel("Selected maps are farmed; unselected maps are skipped.", 24, 222, 640, 16)
+Global $g_h_CaravanHintLabel = GUICtrlCreateLabel("Selected maps are farmed; unselected maps are portal transit only.", 24, 222, 640, 16)
 
 $g_h_StatusLabel = GUICtrlCreateLabel("Status: idle", 24, 240, 640, 22)
 
@@ -148,7 +151,8 @@ Out("GwAu3 Map Coverage Combat Logger")
 Out("Target: Current Map, Ascalon/Maguuma caravan, or a region (Nightfall Kourna, Factions The Jade Sea, ...).")
 Out("Map List: Ctrl+click maps to vanquish. Caravans still use unselected maps as portal transit.")
 Out("Skip completed: already-vanquished maps are not farmed. Finished sequences travel back to campaign hub.")
-Out("Log XY: append player position to logs/map_waypoints_<MapID>.csv (button or F7; works while paused)." & @CRLF)
+Out("Log XY: append player position to logs/map_waypoints_<MapID>.csv (button or F7; works while paused).")
+Out("Pathfinder stuck spots append to logs/pathfinder_stuck_<MapID>.csv (same columns as combat logs)." & @CRLF)
 
 Core_AutoStart()
 

@@ -626,18 +626,25 @@ Global $aTearsTransitPath = [ _
 	[-13618, 20788] _
 ]
 
-; --- Droknar's Forge Southern Shiverpeaks spine (Talus / Snake / Dreadnought / Lornar) ---
-; Droknar's Forge outpost -> Talus Chute
+; --- Ice Caves of Sorrow / Camp Rankor Southern Shiverpeaks spine ---
+; Ice Caves of Sorrow outpost -> Talus Chute (west exit); vanquish ends at Camp Rankor.
 Global $aTalusChuteOutpostPath = [ _
-	[-22877, -5419], _
-	[-23133, -5519] _
+	[-22815, -5378], _
+	[-23091, -5492] _
+]
+
+; Camp Rankor outpost -> Snake Dance (north exit). Do not use the Talus door [7722, -45014].
+; Vendor DreadnoughtsDrift OutpostPath is this same Camp Rankor walk.
+Global $aSnakeDanceOutpostPath = [ _
+	[6647, -41652], _
+	[5831, -41296] _
 ]
 
 ; Snake Dance -> Dreadnought's Drift
 Global $aDreadnoughtsDriftTransitPath = [ _
 	[4361, -40986], _
 	[2911, -39264], _
-	[2133, -33852], _
+    [3372.7315, -38075], _
 	[-1060, -33346], _
 	[-4758, -28947], _
 	[-6471, -25171], _
@@ -691,10 +698,41 @@ Global $aLornarsPassTransit2Path = [ _
 	[-5679, 6641] _
 ]
 
-; --- Ice Caves of Sorrow spine (Ice Dome / Frozen Forest / Ice Floe) ---
-; Ice Caves of Sorrow outpost -> Ice Floe
+; --- Southern ice outpost exits ---
+; Thunderhead Keep (23) -> Ice Floe
 Global $aIceFloeOutpostPath = [ _
 	[-12092, -23275] _
+]
+
+; Iron Mines of Moladune (24) -> Frozen Forest
+Global $aFrozenForestOutpostPath = [ _
+	[-7081, -31932], _
+	[-7584, -31736] _
+]
+
+; Ice Dome -> Frozen Forest (after Ice Dome vanquish)
+Global $aFrozenForestTransitPath = [ _
+	[8557.66, -3765.37], _
+	[-21243.46, -12812.59] _
+]
+
+; Talus Chute -> Ice Dome (after leaving Ice Caves of Sorrow)
+Global $aIcedomeTransitPath = [ _
+	[20104, -13167], _
+	[19138, -10938], _
+	[18469, -8424], _
+	[13995, -8343], _
+	[15599, -6604], _
+	[18342, -837], _
+	[20857, -494], _
+	[21224, 2843], _
+	[21705, 4661], _
+	[22376, 7119], _
+	[23184, 9199], _
+	[23218, 11371], _
+	[22197, 16324], _
+	[23438, 16609], _
+	[24083, 16716] _
 ]
 
 ; --- Outpost exit paths (generated) ---
