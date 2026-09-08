@@ -25,6 +25,12 @@ Global $g_f_StuckLastY = 0
 Global $g_h_StuckLastTimer = 0
 Global Const $GC_F_STUCK_LOG_DEDUP_DIST = 200
 Global Const $GC_I_STUCK_LOG_DEDUP_MS = 4000
+Global $g_b_AutoRouteCoordsEnabled = True
+Global $g_f_AutoRouteMinDist = 400
+Global $g_f_AutoRouteLastX = 0
+Global $g_f_AutoRouteLastY = 0
+Global $g_i_AutoRouteLastMapID = 0
+Global $g_i_AutoRouteLoggedCount = 0
 
 Func CombatLogger_LoadConfig($a_s_ConfigPath = "")
 	If $a_s_ConfigPath = "" Then $a_s_ConfigPath = @ScriptDir & "\config.ini"
@@ -32,10 +38,53 @@ Func CombatLogger_LoadConfig($a_s_ConfigPath = "")
 	Combat_LoadConfig($a_s_ConfigPath)
 	$g_s_LogDirectory = IniRead($a_s_ConfigPath, "Log", "Directory", "logs")
 	$g_s_CaravanLogStartMap = IniRead($a_s_ConfigPath, "Log", "CaravanLogStartMap", "DeldrimorBowl")
+	$g_b_AutoRouteCoordsEnabled = Number(IniRead($a_s_ConfigPath, "Log", "AutoRouteCoords", "1")) <> 0
+	$g_f_AutoRouteMinDist = Number(IniRead($a_s_ConfigPath, "Log", "AutoRouteMinDist", "400"))
 	$g_f_CombatRadius = Number(IniRead($a_s_ConfigPath, "Combat", "CombatRadius", "500"))
 
 	If $g_f_CombatRadius <= 0 Then $g_f_CombatRadius = 500
+	If $g_f_AutoRouteMinDist < 100 Then $g_f_AutoRouteMinDist = 400
 	If $g_s_CaravanLogStartMap = "" Then $g_s_CaravanLogStartMap = "DeldrimorBowl"
+EndFunc
+
+Func CombatLogger_ResetAutoRoute()
+	$g_f_AutoRouteLastX = 0
+	$g_f_AutoRouteLastY = 0
+	$g_i_AutoRouteLastMapID = 0
+	$g_i_AutoRouteLoggedCount = 0
+EndFunc
+
+; Append player position while the bot moves (Pathfinder handles portals; no manual portal walk needed).
+Func CombatLogger_AutoRouteTick($a_b_Active = False)
+	If Not $a_b_Active Or Not $g_b_AutoRouteCoordsEnabled Then Return
+
+	Local $l_i_Map = Map_GetMapID()
+	If $l_i_Map <= 0 Then Return
+
+	If $l_i_Map <> $g_i_AutoRouteLastMapID Then
+		$g_f_AutoRouteLastX = 0
+		$g_f_AutoRouteLastY = 0
+		$g_i_AutoRouteLastMapID = $l_i_Map
+	EndIf
+
+	Local $l_f_X = Agent_GetAgentInfo(-2, "X")
+	Local $l_f_Y = Agent_GetAgentInfo(-2, "Y")
+	If $l_f_X = 0 And $l_f_Y = 0 Then Return
+
+	If $g_f_AutoRouteLastX <> 0 Or $g_f_AutoRouteLastY <> 0 Then
+		Local $l_f_Dx = $l_f_X - $g_f_AutoRouteLastX
+		Local $l_f_Dy = $l_f_Y - $g_f_AutoRouteLastY
+		If Sqrt($l_f_Dx * $l_f_Dx + $l_f_Dy * $l_f_Dy) < $g_f_AutoRouteMinDist Then Return
+	EndIf
+
+	If Not CombatLogger_LogMapCoord("auto") Then Return
+	$g_f_AutoRouteLastX = $l_f_X
+	$g_f_AutoRouteLastY = $l_f_Y
+	$g_i_AutoRouteLoggedCount += 1
+EndFunc
+
+Func CombatLogger_GetAutoRouteCount()
+	Return $g_i_AutoRouteLoggedCount
 EndFunc
 
 Func CombatLogger_IsSessionActive()

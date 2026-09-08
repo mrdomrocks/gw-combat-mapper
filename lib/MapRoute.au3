@@ -2,6 +2,9 @@
 ; Caravan routes: 16 | Vanquish arrays: 131 | Switch cases: 131
 #include-once
 
+; Vanquish route arrays use the MVR layout [n][4] = [x, y, label, $vqrange].
+Global $vqrange = 1450
+
 #include "maps\Routes\CaravanAscalon_AnvilRock.au3"
 #include "maps\Routes\CaravanAscalon_AscalonFoothills.au3"
 #include "maps\Routes\CaravanAscalon_DeldrimorBowl.au3"
@@ -180,6 +183,7 @@ Func MapRoute_DedupePath1D(ByRef $a_a_X, ByRef $a_a_Y, $a_i_Count, $a_f_MinSpaci
 	Return $l_i_Out
 EndFunc
 
+; Copy X/Y from a 2D route array ([n][2] or MVR [n][4]) into parallel 1D arrays.
 Func MapRoute_CopyPath1D(ByRef $a_a_Source, ByRef $a_a_X, ByRef $a_a_Y)
 	If Not IsArray($a_a_Source) Then Return 0
 

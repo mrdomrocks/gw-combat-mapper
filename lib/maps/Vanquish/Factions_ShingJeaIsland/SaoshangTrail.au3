@@ -7,34 +7,37 @@
 ; Smoothed 1 additional anchor(s) for wall clearance and hop distance.
 ; Waypoints tagged "auto" were generated to route around
 ; unwalkable terrain; every other coordinate is unchanged from the source.
+; Layout matches MVR: [x, y, label, $vqrange].
 
-Global $aFactions_ShingJeaIsland_SaoshangTrailRoute01[27][2] = [ _
-	[15519, 13409], _
-	[14502, 13165], _
-	[13632, 12799], _
-	[12763, 12433], _
-	[11590, 11736], _
-	[10416, 11040], _
-	[9805, 10947], _
-	[8860, 10272], _
-	[8553, 10272], _
-	[8399, 10272], _
-	[8246, 10272], _
-	[7632, 10272], _
-	[8162, 11075], _
-	[8691, 11878], _
-	[8329, 12867], _
-	[7704, 13824], _
-	[7460, 13833], _
-	[7215, 13842], _
-	[7059, 13840], _
-	[6834, 13837], _ ; auto
-	[6609, 13834], _
-	[6003, 13827], _
-	[5450, 13202], _
-	[4896, 12576], _
-	[4392, 11520], _
-	[3888, 10464], _
-	[3584, 10280] _
+Global $vqrange = 1450
+
+Global $aFactions_ShingJeaIsland_SaoshangTrailRoute01[27][4] = [ _
+	[15519, 13409, " ", $vqrange], _
+	[14502, 13165, " ", $vqrange], _
+	[13632, 12799, " ", $vqrange], _
+	[12763, 12433, " ", $vqrange], _
+	[11590, 11736, " ", $vqrange], _
+	[10416, 11040, " ", $vqrange], _
+	[9805, 10947, " ", $vqrange], _
+	[8860, 10272, " ", $vqrange], _
+	[8553, 10272, " ", $vqrange], _
+	[8399, 10272, " ", $vqrange], _
+	[8246, 10272, " ", $vqrange], _
+	[7632, 10272, " ", $vqrange], _
+	[8162, 11075, " ", $vqrange], _
+	[8691, 11878, " ", $vqrange], _
+	[8329, 12867, " ", $vqrange], _
+	[7704, 13824, " ", $vqrange], _
+	[7460, 13833, " ", $vqrange], _
+	[7215, 13842, " ", $vqrange], _
+	[7059, 13840, " ", $vqrange], _
+	[6834, 13837, " ", $vqrange], _ ; auto
+	[6609, 13834, " ", $vqrange], _
+	[6003, 13827, " ", $vqrange], _
+	[5450, 13202, " ", $vqrange], _
+	[4896, 12576, " ", $vqrange], _
+	[4392, 11520, " ", $vqrange], _
+	[3888, 10464, " ", $vqrange], _
+	[3584, 10280, " ", $vqrange] _
 ]
 

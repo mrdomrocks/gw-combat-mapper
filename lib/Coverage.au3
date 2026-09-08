@@ -393,6 +393,13 @@ Func Coverage_SaveProgress()
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "GridStep", $g_f_GridStep)
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "IsVanquishRoute", Int($g_b_CoverageIsVanquishRoute))
 	IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "RepeatPass", $g_i_CoverageRepeatPass)
+	If IsFunc("VanquishCheck_GetRemainingFoes") Then
+		IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "FoesRemaining", VanquishCheck_GetRemainingFoes())
+		IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "FoesKilled", VanquishCheck_GetFoesKilled())
+	EndIf
+	If $g_s_CoverageMapTitle <> "" Then
+		IniWrite($GC_S_COVERAGE_PROGRESS, "Progress", "MapTitle", $g_s_CoverageMapTitle)
+	EndIf
 EndFunc
 
 Func Coverage_TryResume($a_b_Verbose = True)
