@@ -6,6 +6,7 @@ MaxX=0
 MinY=0
 MaxY=0
 FilterReachable=0
+SweepMode=Vanquish Route
 [Combat]
 AggroRange=1450
 FightRangeOut=3500
@@ -15,6 +16,19 @@ SmartCast=1
 SmartCastWeaponSets=1
 LootPickup=1
 LootRange=1500
+[Recovery]
+ResumeAfterRez=1
+LastStand=0
+[Consumables]
+Enabled=0
+BirdsEyeCompass=1
+Conset=0
+Honeycombs=0
+SummoningStones=0
+[Junundu]
+Enabled=0
+[Export]
+AggroRange=1450
 [Travel]
 HardMode=1
 LastTarget=Current Map
@@ -61,3 +75,6 @@ ClickAhead=2000
 [Log]
 Directory=logs
 CaravanLogStartMap=
+AutoRouteCoords=1
+AutoRouteMinDist=400
+ChestLogging=0

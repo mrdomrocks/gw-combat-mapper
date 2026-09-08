@@ -110,6 +110,39 @@ Hero teams are applied automatically before each map based on that map's max par
 
 `timestamp,map_id,event,x,y` — see [`CombatMapper.au3`](CombatMapper.au3) console help for Log XY and coverage bounds.
 
+## MVR waypoint export
+
+Combat Mapper can convert logged coordinates into Master Vanquisher route snippets:
+
+1. Run a sweep (auto route logging is on by default) or use **Log XY** (F7) for manual points.
+2. Click **Export MVR** in the GUI, or run:
+
+   ```text
+   python3 scripts/export_waypoints.py <MapID> --title TravelersVale --reverse
+   ```
+
+3. Output lands in `exports/<Title>_MVR.au3` with `MoveandAggroVQFullRoute($aWaypoints)` and a reverse pass file.
+
+While the bot runs, player positions append to `logs/map_waypoints_<MapID>.csv` every ~400 units (config `[Log] AutoRouteCoords` / `AutoRouteMinDist`). Use **Export MVR** or splice those points into `lib/maps/Vanquish/` route arrays as needed. Pathfinder handles portal hops on its own — no separate portal walk recording.
+
+## Sweep modes (Combat Mapper)
+
+| Mode | Behavior |
+|------|----------|
+| **Vanquish Route** | Hand-tuned route from `lib/maps/Vanquish/` with repeat passes until vanquish |
+| **Grid Coverage** | Lawnmower grid over Min/Max bounds (or auto-padded player position) |
+| **Dynamic Enemy Hunt** | Pathfinder nearest-enemy loop until vanquish or no targets |
+
+## Feature toggles (Combat Mapper GUI)
+
+- **Last Stand (<20)** — wait for manual finish when nearly done after a wipe
+- **Consumables** — optional Conset / honeycombs / Bird's Eye Compass at run start
+- **Junundu** — auto-mount in Desolation maps
+- **Chest log** — append chest spawn coordinates to `logs/chest_spawns_<MapID>.csv`
+- **Hero team** — optional hero setup before each map (uses `vanquish_config.ini`)
+
+Per-map coverage bounds are saved to `map_bounds.ini` and auto-loaded when re-entering a zone.
+
 ## Troubleshooting
 
 | Symptom | Fix |

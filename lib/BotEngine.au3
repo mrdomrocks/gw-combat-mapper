@@ -47,8 +47,19 @@ Func BotEngine_Start()
 	$g_b_CaravanSkipVanquished = GetChecked($g_h_SkipVanquishedCheckbox)
 	MapTravel_LoadConfig($GC_S_CONFIG)
 	Combat_LoadConfig($GC_S_CONFIG)
-	If $g_b_CombatLoggingEnabled Then CombatLogger_LoadConfig($GC_S_CONFIG)
+	CombatLogger_LoadConfig($GC_S_CONFIG)
+	CombatLogger_ResetAutoRoute()
 	LootPickup_LoadConfig($GC_S_CONFIG)
+	If IsFunc("DeathRecovery_LoadConfig") Then DeathRecovery_LoadConfig($GC_S_CONFIG)
+	If IsFunc("DeathRecovery_ResetSession") Then DeathRecovery_ResetSession()
+	If IsFunc("Consumables_LoadConfig") Then Consumables_LoadConfig($GC_S_CONFIG)
+	If IsFunc("JununduMode_LoadConfig") Then JununduMode_LoadConfig($GC_S_CONFIG)
+	If IsFunc("ChestLogger_LoadConfig") Then ChestLogger_LoadConfig($GC_S_CONFIG)
+	If IsDeclared("g_s_SweepMode") Then
+		; launcher may sync from GUI in _BotHook_OnBeforeRun
+	Else
+		Global $g_s_SweepMode = IniRead($GC_S_CONFIG, "Coverage", "SweepMode", "Vanquish Route")
+	EndIf
 
 	If $g_b_HeroTeamEnabled Then
 		Local $l_s_HeroErr = BotEngine_CallIfExists("HeroTeam_ValidateBeforeRun", $g_s_SelectedTarget)
@@ -357,6 +368,8 @@ EndFunc
 Func BotEngine_RunCoverageForTitle($a_s_Title)
 	BotEngine_OnBeforeMapFarm($a_s_Title)
 	$g_s_CoverageMapTitle = $a_s_Title
+	If IsFunc("JununduMode_OnMapEnter") Then JununduMode_OnMapEnter($a_s_Title)
+	If IsFunc("Consumables_ApplyAtRunStart") Then Consumables_ApplyAtRunStart()
 	RunCoverageSweep()
 	$g_s_CoverageMapTitle = ""
 EndFunc
@@ -880,6 +893,38 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 	If $g_b_CombatLoggingEnabled Then CombatLogger_LoadConfig()
 	SmartCast_LoadConfig()
 	LootPickup_LoadConfig()
+	If IsFunc("DeathRecovery_ResetSession") Then DeathRecovery_ResetSession()
+
+	SmartCast_EnsureReady(True)
+	VanquishCheck_WaitUntilReady(False)
+	If VanquishCheck_IsCoverageVanquished() Then
+		Out("Skip coverage sweep — area already vanquished; leave via portal route.")
+		$g_i_CoverageIndex = $g_i_CoverageCount
+		$g_b_SweepActive = False
+		If Not MapCatalog_IsMapListSelection($g_s_SelectedTarget) Then
+			$g_b_BotRunning = False
+			BotEngine_SetIdleUiState()
+		EndIf
+		Return
+	EndIf
+
+	Local $l_s_Mode = "Vanquish Route"
+	If IsDeclared("g_s_SweepMode") Then $l_s_Mode = $g_s_SweepMode
+	If $l_s_Mode = "Dynamic Enemy Hunt" Then
+		If IsFunc("DynamicSweep_Run") Then
+			DynamicSweep_Run($g_s_CoverageMapTitle)
+			VanquishCheck_ReportCoverageGap("dynamic hunt")
+			If IsFunc("MapBounds_SaveCurrentFromGlobals") Then MapBounds_SaveCurrentFromGlobals()
+		Else
+			Out("Dynamic sweep module unavailable.")
+		EndIf
+		$g_b_SweepActive = False
+		If Not MapCatalog_IsMapListSelection($g_s_SelectedTarget) Then
+			$g_b_BotRunning = False
+			BotEngine_SetIdleUiState()
+		EndIf
+		Return
+	EndIf
 
 	If $g_b_CombatLoggingEnabled Then
 		If $a_b_ReuseLogSession And CombatLogger_IsSessionActive() Then
@@ -896,19 +941,6 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 		EndIf
 	EndIf
 
-	SmartCast_EnsureReady(True)
-	VanquishCheck_WaitUntilReady(False)
-	If VanquishCheck_IsCoverageVanquished() Then
-		Out("Skip coverage sweep — area already vanquished; leave via portal route.")
-		$g_i_CoverageIndex = $g_i_CoverageCount
-		$g_b_SweepActive = False
-		If Not MapCatalog_IsMapListSelection($g_s_SelectedTarget) Then
-			$g_b_BotRunning = False
-			BotEngine_SetIdleUiState()
-		EndIf
-		Return
-	EndIf
-
 	Local $l_b_HaveRoute = False
 	If $a_b_AllowResume And $g_b_ResumeRequested Then
 		$l_b_HaveRoute = Coverage_TryResume(True)
@@ -916,6 +948,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 	If Not $l_b_HaveRoute Then
 		Coverage_ClearProgress()
+		If $l_s_Mode = "Grid Coverage" Then $g_s_CoverageMapTitle = ""
 		If Not Coverage_BuildRoute(True) Then
 			Out("No reachable coverage points. Check map mesh / tighten or widen bounds.")
 			$g_b_SweepActive = False
@@ -997,7 +1030,7 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 			If $l_i_ChainEnd > $l_i_ChainStart Then $l_s_Chain &= "-" & ($l_i_ChainEnd + 1)
 			UpdateStatusLabel("moving " & $l_s_Chain & "/" & $g_i_CoverageCount & _
 				Coverage_PassLogSuffix() & " -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ")" & _
-				BotEngine_EventCountSuffix())
+				BotEngine_EventCountSuffix() & VanquishCheck_StatusSuffix())
 			Out("Coverage chain " & $l_s_Chain & "/" & $g_i_CoverageCount & Coverage_PassLogSuffix() & _
 				" -> (" & Round($l_f_X) & "," & Round($l_f_Y) & ") dist=" & Round($l_f_DistBefore))
 
@@ -1021,6 +1054,13 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 					ExitLoop
 				EndIf
 				If Party_GetPartyContextInfo("IsDefeated") Then
+					If IsFunc("DeathRecovery_HandleWipe") Then
+						If Not DeathRecovery_HandleWipe() Then
+							$l_b_MoveInterrupted = True
+							ExitLoop
+						EndIf
+						ContinueLoop
+					EndIf
 					Out("Pathfinder_MoveTo interrupted (party defeated). Stopping map sweep.")
 					$l_b_MoveInterrupted = True
 					ExitLoop
@@ -1106,8 +1146,13 @@ Func RunCoverageSweep($a_b_ReuseLogSession = False, $a_b_AllowResume = True)
 
 	If Coverage_IsComplete() And Not $g_b_StopRequested Then
 		If $g_b_CombatLoggingEnabled Then CombatLogger_FlushIfInCombat()
-		Out("Coverage complete on MapID=" & Map_GetMapID() & "." & BotEngine_EventCountSuffix())
+		Out("Coverage complete on MapID=" & Map_GetMapID() & "." & BotEngine_EventCountSuffix() & VanquishCheck_StatusSuffix())
+		VanquishCheck_ReportCoverageGap("grid/route sweep")
+		If IsFunc("MapBounds_SaveCurrentFromGlobals") Then MapBounds_SaveCurrentFromGlobals()
 		If $g_b_CombatLoggingEnabled Then Out("Log file: " & CombatLogger_GetLogFile())
+		If CombatLogger_GetAutoRouteCount() > 0 Then
+			Out("Auto route log (" & CombatLogger_GetAutoRouteCount() & "): " & CombatLogger_GetMapCoordLogFile())
+		EndIf
 		If IsFunc(Execute("CombatLogger_GetStuckCount")) And CombatLogger_GetStuckCount() > 0 Then
 			Out("Stuck log (" & CombatLogger_GetStuckCount() & "): " & CombatLogger_GetStuckLogFile())
 		EndIf
@@ -1139,8 +1184,12 @@ Func BotEngine_Tick()
 	SmartCast_EnsureReady(False)
 	If $g_b_CombatLoggingEnabled Then CombatLogger_Tick()
 	LootPickup_Tick()
+	CombatLogger_AutoRouteTick($g_b_BotRunning)
+	If IsFunc("JununduMode_Tick") Then JununduMode_Tick()
+	If IsFunc("ChestLogger_Tick") Then ChestLogger_Tick()
+	If IsFunc("VanquishCheck_UpdateGui") Then VanquishCheck_UpdateGui()
 	UpdateStatusLabel("XY=(" & Round(Agent_GetAgentInfo(-2, "X")) & "," & Round(Agent_GetAgentInfo(-2, "Y")) & ")" & _
-		BotEngine_EventCountSuffix() & " | sc=" & Int($g_b_SmartCastReady))
+		BotEngine_EventCountSuffix() & VanquishCheck_StatusSuffix() & " | sc=" & Int($g_b_SmartCastReady))
 EndFunc
 
 Func BotEngine_GetObstacles($a_f_Radius = 85, $a_f_DetectionRange = 4000, $a_s_CustomFilter = "")

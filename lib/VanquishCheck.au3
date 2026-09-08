@@ -125,3 +125,49 @@ EndFunc
 Func VanquishCheck_IsCoverageVanquished()
 	Return VanquishCheck_IsAreaVanquished()
 EndFunc
+
+Func VanquishCheck_GetRemainingFoes()
+	If VanquishCheck_IsMapHistoricallyVanquished() Then Return 0
+	Local $l_i_Remaining = VanquishCheck_GetFoesToKill()
+	If $l_i_Remaining < 0 Then Return -1
+	Return $l_i_Remaining
+EndFunc
+
+Func VanquishCheck_StatusSuffix()
+	If Not Map_GetInstanceInfo("IsExplorable") Then Return ""
+	If VanquishCheck_IsCoverageVanquished() Then Return " | VQ=done"
+	Local $l_i_Remaining = VanquishCheck_GetRemainingFoes()
+	If $l_i_Remaining < 0 Then Return " | foes=?"
+	If $l_i_Remaining = 0 Then Return " | VQ=done"
+	Return " | missing=" & $l_i_Remaining
+EndFunc
+
+Func VanquishCheck_UpdateGui()
+	If Not IsDeclared("g_h_VanquishLabel") Then Return
+	If Not $g_h_VanquishLabel Then Return
+	GUICtrlSetData($g_h_VanquishLabel, VanquishCheck_FormatStatusLine())
+EndFunc
+
+Func VanquishCheck_FormatStatusLine()
+	If VanquishCheck_IsCoverageVanquished() Then Return "Vanquish: complete"
+	Local $l_i_Remaining = VanquishCheck_GetRemainingFoes()
+	Local $l_i_Killed = VanquishCheck_GetFoesKilled()
+	If $l_i_Remaining < 0 Then Return "Vanquish: waiting for counter"
+	If $l_i_Remaining = 0 Then Return "Vanquish: complete"
+	Return "Vanquish: missing " & $l_i_Remaining & " | killed " & $l_i_Killed
+EndFunc
+
+; True when sweep finished but foes still remain — likely coverage gaps.
+Func VanquishCheck_HasCoverageGap()
+	If Not Map_GetInstanceInfo("IsExplorable") Then Return False
+	If VanquishCheck_IsCoverageVanquished() Then Return False
+	Local $l_i_Remaining = VanquishCheck_GetRemainingFoes()
+	Return $l_i_Remaining > 0
+EndFunc
+
+Func VanquishCheck_ReportCoverageGap($a_s_Context = "sweep")
+	If Not VanquishCheck_HasCoverageGap() Then Return False
+	Out("Coverage gap after " & $a_s_Context & ": " & VanquishCheck_GetRemainingFoes() & " foes remain.")
+	Out("Tip: switch SweepMode to dynamic, widen bounds, or add waypoints via Log XY.")
+	Return True
+EndFunc

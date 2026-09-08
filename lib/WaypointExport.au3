@@ -193,18 +193,6 @@ Func WaypointExport_BuildMapperArray($a_s_Title, ByRef $a_a_X, ByRef $a_a_Y, $a_
 	Return $l_s
 EndFunc
 
-Func WaypointExport_BuildPortalArray($a_s_Label, ByRef $a_a_X, ByRef $a_a_Y, $a_i_Count)
-	If $a_i_Count < 1 Then Return ""
-
-	Local $l_s = "Local $a" & $a_s_Label & "Path[" & $a_i_Count & "][2] = [ _" & @CRLF
-	Local $i
-	For $i = 0 To $a_i_Count - 1
-		$l_s &= "	" & WaypointExport_FormatCoord($a_a_X[$i], $a_a_Y[$i]) & ", _" & @CRLF
-	Next
-	$l_s = StringTrimRight(StringStripWS($l_s, 3), 2) & @CRLF & "]"
-	Return $l_s
-EndFunc
-
 Func WaypointExport_WriteFile($a_s_Path, $a_s_Content)
 	WaypointExport_EnsureDir()
 	Local $l_h = FileOpen($a_s_Path, $FO_OVERWRITE + $FO_CREATEPATH)
@@ -248,32 +236,4 @@ Func WaypointExport_ExportMap($a_i_MapID = -1, $a_s_Title = "", $a_b_Reverse = F
 	Out("Export: combat-mapper route -> " & $l_s_RoutePath)
 	If $a_b_Reverse Then Out("Export: reverse pass -> " & $l_s_RevPath)
 	Return True
-EndFunc
-
-Func WaypointExport_ExportPortalLogs($a_s_Title)
-	If $a_s_Title = "" Then $a_s_Title = $g_s_CoverageMapTitle
-	If $a_s_Title = "" Then Return False
-
-	Local $l_s_LogDir = @ScriptDir & "\logs"
-	Local $l_a_Labels[2] = ["Outpost", "Transit"]
-	Local $l_i_Exported = 0
-
-	Local $i
-	For $i = 0 To 1
-		Local $l_s_Path = $l_s_LogDir & "\portal_" & $a_s_Title & "_" & StringLower($l_a_Labels[$i]) & ".csv"
-		If Not FileExists($l_s_Path) Then ContinueLoop
-
-		Local $l_a_X[0], $l_a_Y[0], $l_i_Count = 0
-		If Not WaypointExport_LoadCsvFile($l_s_Path, $l_a_X, $l_a_Y, $l_i_Count) Then ContinueLoop
-
-		WaypointExport_EnsureDir()
-		Local $l_s_Out = $GC_S_WAYPOINT_EXPORT_DIR & "\" & $a_s_Title & "_" & $l_a_Labels[$i] & "Path.au3"
-		Local $l_s_Body = "; Portal path from " & $l_s_Path & @CRLF & _
-			WaypointExport_BuildPortalArray($a_s_Title & $l_a_Labels[$i], $l_a_X, $l_a_Y, $l_i_Count)
-		If WaypointExport_WriteFile($l_s_Out, $l_s_Body) Then
-			Out("Export portal: " & $l_a_Labels[$i] & " (" & $l_i_Count & ") -> " & $l_s_Out)
-			$l_i_Exported += 1
-		EndIf
-	Next
-	Return $l_i_Exported > 0
 EndFunc
